@@ -207,6 +207,22 @@ def main() -> int:
         print(console.row("error", "Room.glb", f"missing   {detail}", "yellow"))
         return 1
 
+    # Carry the SHELL facts the collision check needs INSIDE the glb (glTF `extras`), so the gate
+    # is one deterministic function of one file instead of a glb plus whichever Room.py happens to
+    # be newest. Stamped here rather than inside Room.py because this side of the subprocess
+    # already holds both paths and needs no bpy. Never fatal: an unstamped glb still checks fine
+    # via the Room.py fallback, it just is not self-describing.
+    try:
+        from litereality_agent.room_ops import glb_meta
+        from litereality_agent.room_ops.shell import extract_shell
+
+        c = glb_meta.stamp(out_glb, extract_shell((roomdir / "Room.py").read_text()))
+        print(console.row("done", "glb metadata",
+                          f"{c['objects']} objects, {c['walls']} walls, "
+                          f"{c['openings']} openings", "yellow"))
+    except Exception as exc:  # noqa: BLE001
+        print(console.row("warn", "glb metadata", f"not stamped ({exc})", "yellow"))
+
     size = console.human_bytes(out_glb.stat().st_size)
     print(f"{console.row('done' if not failed else 'error', 'Room.glb', f'{size:<9} {detail}', 'yellow')}{took}")
     mark = "done" if built == len(manifest["assets"]) else "error"

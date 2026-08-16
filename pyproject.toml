@@ -39,6 +39,12 @@ dependencies = [
     # so this costs a few MB and no compiler — cheaper than shipping a gate that quietly does nothing.
     "python-fcl",
     "networkx",
+    # QC fix magnitude. The meshes are not watertight, so FCL's penetration depth is unusable and
+    # the fix distance used to come from the two objects' world AABBs — which over-states the move
+    # by 1.6-2.8x, pushing it past MAX_NUDGE so the correction gets reverted and the clash ships.
+    # Convex pieces are closed, so the distance is real. Without this the code still runs and falls
+    # back to the AABB estimate, which is the old (worse) behaviour rather than a crash.
+    "coacd",
     # viewer (later)
     "fastapi>=0.111.0",
     "uvicorn>=0.30.0",

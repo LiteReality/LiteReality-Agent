@@ -13,40 +13,13 @@ and needs neither Blender nor a compiled `Room.glb`.
 
 from __future__ import annotations
 
-import ast
-import json
 import math
-import re
 
+# Parsing `Room.py` belongs to room_ops, which owns that artifact; re-exported under the old
+# private name so every existing caller (checks.py, correct.py, the tool) is unchanged.
+from litereality_agent.room_ops.shell import extract_shell as _extract_shell
 
-def _extract_shell(src: str) -> dict:
-    """Brace-matched parse of the `SHELL = {...}` literal — robust to whatever code follows it
-    (the shell-editing pass moves the old `\\n\\nif __name__` anchor a regex relied on).
-
-    JSON is the fast path, but the authoring/QC MODEL edits `SHELL` as Python, and the moment it
-    writes something valid-Python-but-not-JSON — an adjacent-string note (`"a" "b"`), a trailing
-    comma, a tuple — `json.loads` fails and the OLD code returned `{}`, silently blinding every
-    geometry check below (no walls, no objects → every clash "passes"). `ast.literal_eval` parses
-    the same Python literal, so fall back to it before giving up."""
-    m = re.search(r"\bSHELL\s*=\s*\{", src)
-    if not m:
-        return {}
-    i = src.index("{", m.start())
-    depth = 0
-    for j in range(i, len(src)):
-        if src[j] == "{":
-            depth += 1
-        elif src[j] == "}":
-            depth -= 1
-            if depth == 0:
-                blob = src[i:j + 1]
-                for parse in (json.loads, ast.literal_eval):
-                    try:
-                        return parse(blob)
-                    except Exception:  # noqa: BLE001
-                        continue
-                return {}
-    return {}
+__all__ = ["_extract_shell"]
 
 
 def _obb_mtv_2d(a, b):

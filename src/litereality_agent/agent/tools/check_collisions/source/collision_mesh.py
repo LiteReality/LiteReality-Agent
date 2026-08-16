@@ -63,10 +63,36 @@ def _handle_of(node, preds, handles):
     return None
 
 
-def build_bodies(glb_path: str | Path, shell: dict) -> dict:
+def shell_for(glb_path: str | Path, shell: dict | None = None) -> dict:
+    """The SHELL facts to check against: the caller's, else the ones carried in the glb itself.
+
+    A glb stamped by `glb_meta` is self-describing, which is what lets the collision check be one
+    deterministic function of one file. Older glbs carry nothing, so an explicit `shell` always
+    wins and the caller can still parse `Room.py`.
+    """
+    if shell:
+        return shell
+    from litereality_agent.room_ops import glb_meta
+
+    return glb_meta.shell_from_glb(glb_path)
+
+
+def check_glb(glb_path: str | Path, shell: dict | None = None) -> list[dict]:
+    """Every collision finding for one built room — `check_glb(path)` and nothing else.
+
+    This is the deterministic gate: it reads, it never writes a room. Turning findings into edits
+    to `Room.py` is `pipeline/room_qc/correct.py`'s job, deliberately kept separate.
+    """
+    shell = shell_for(glb_path, shell)
+    return check_all(build_bodies(glb_path, shell), shell)
+
+
+def build_bodies(glb_path: str | Path, shell: dict | None = None) -> dict:
     """Group `Room.glb` into collision bodies (all meshes in the glb world frame)."""
     import networkx as nx
     import trimesh
+
+    shell = shell_for(glb_path, shell)
 
     scene = trimesh.load(str(glb_path))
     G = scene.graph.to_networkx()
@@ -117,6 +143,8 @@ def build_bodies(glb_path: str | Path, shell: dict) -> dict:
         "floor": _concat([m for h in floor_h for _, m in parts.get(h, [])]),
         "furniture": furniture,
         "leaves": leaves,
+        # kept so `check_all` can put the convex-decomposition cache next to the glb it describes
+        "glb": Path(glb_path),
     }
 
 
@@ -164,6 +192,63 @@ def mesh_contacts(bodies: dict) -> dict:
     return {"object_pairs": object_pairs, "leaf_hits": leaf_hits}
 
 
+def _convex_parts(bodies: dict, shell: dict, only: set | None = None) -> dict:
+    """Convex decomposition per furniture body, or {} when `coacd` is not installed.
+
+    `only` is the whole performance story. Decomposition costs ~20 s per distinct asset and is by
+    far the most expensive thing here, so it is deliberately the LAST step: the raw-mesh pass has
+    already named the pairs in contact, and nothing else needs measuring. Restricting to those
+    bodies is strictly tighter than an AABB broad-phase would be — mesh contacts are a subset of
+    box overlaps — and FCL already runs an AABB broad-phase internally
+    (`DynamicAABBTreeCollisionManager`), so a hand-rolled one would only duplicate it.
+    Elliott-Studio decomposed 20 bodies to measure 2 clashes; with `only` it does 4.
+
+    The cache lives beside the glb, keyed on canonical (un-placed) geometry, so the eight chairs cut
+    from one asset decompose once and a re-run on an unchanged room is free.
+    """
+    from litereality_agent.agent.tools.check_collisions.source import convex
+
+    if not convex.available():
+        return {}
+    glb = bodies.get("glb")
+    cache = (Path(glb).parent / convex.CACHE_DIRNAME) if glb else None
+    yaws = {i: o.get("yaw", 0.0) for i, o in (shell.get("objects") or {}).items()}
+    out = {}
+    for oid, mesh in bodies["furniture"].items():
+        if only is not None and oid not in only:
+            continue
+        parts = convex.decompose(mesh, yaw_deg=yaws.get(oid, 0.0), cache_dir=cache)
+        if parts:
+            out[oid] = parts
+    return out
+
+
+def _separation(a: str, b: str, fur: dict, convex_parts: dict) -> dict:
+    """How far, and which way, to push `b` off `a` — convex MTV when available, else AABB overlap.
+
+    The AABB path is the historical behaviour and is kept as the fallback: it pushes along whichever
+    WORLD axis overlaps less, which both over-states the distance (1.6–2.8x on Panda-2) and can only
+    point along x or z. The convex path returns the true shortest horizontal move in any direction.
+    """
+    if a in convex_parts and b in convex_parts:
+        from litereality_agent.agent.tools.check_collisions.source import convex as _cx
+
+        mtv = _cx.mtv_xy(convex_parts[a], convex_parts[b])
+        if mtv:
+            gx, gz, depth = mtv
+            return {"gx": gx, "gz": gz, "depth": depth, "method": "convex"}
+
+    amin, amax = fur[a].bounds
+    bmin, bmax = fur[b].bounds
+    ox = min(amax[0], bmax[0]) - max(amin[0], bmin[0])
+    oz = min(amax[2], bmax[2]) - max(amin[2], bmin[2])
+    if ox <= oz:  # push b off a along the shallower-overlap axis
+        sign = 1.0 if (bmin[0] + bmax[0]) >= (amin[0] + amax[0]) else -1.0
+        return {"gx": sign * ox, "gz": 0.0, "depth": ox, "method": "aabb"}
+    sign = 1.0 if (bmin[2] + bmax[2]) >= (amin[2] + amax[2]) else -1.0
+    return {"gx": 0.0, "gz": sign * oz, "depth": oz, "method": "aabb"}
+
+
 def _point_in_room(px: float, pz: float, walls: dict) -> bool:
     """Even-odd ray cast of a glb-plan point (x, z) against the wall loop (SHELL(x,y)→glb(x,-y))."""
     inside = False
@@ -185,22 +270,21 @@ def check_all(bodies: dict, shell: dict) -> list[dict]:
     contacts = mesh_contacts(bodies)
     findings: list[dict] = []
 
-    # object ↔ object — true mesh contact; separation from the meshes' own AABB overlap (not FCL depth)
+    # object ↔ object — contact from the RAW mesh (above), separation from the CONVEX decomposition.
+    # Detection and measurement are deliberately different models: raw triangles are the only thing
+    # that gets a tuck right, but they are not watertight so FCL's depth is unusable; convex pieces
+    # are closed so their arithmetic is meaningful, but they over-approximate by ~17 mm and would
+    # invent clashes if they decided contact. Each model is used only where it is sound.
+    touching = {oid for pair in contacts["object_pairs"] for oid in pair}
+    convex = _convex_parts(bodies, shell, only=touching) if touching else {}
     for pair in contacts["object_pairs"]:
         a, b = sorted(pair)
-        amin, amax = fur[a].bounds
-        bmin, bmax = fur[b].bounds
-        ox = min(amax[0], bmax[0]) - max(amin[0], bmin[0])
-        oz = min(amax[2], bmax[2]) - max(amin[2], bmin[2])
-        if ox <= oz:  # push b off a along the shallower-overlap axis
-            sign = 1.0 if (bmin[0] + bmax[0]) >= (amin[0] + amax[0]) else -1.0
-            gx, gz, depth = sign * ox, 0.0, ox
-        else:
-            sign = 1.0 if (bmin[2] + bmax[2]) >= (amin[2] + amax[2]) else -1.0
-            gx, gz, depth = 0.0, sign * oz, oz
+        sep = _separation(a, b, fur, convex)
+        gx, gz, depth = sep["gx"], sep["gz"], sep["depth"]
         sdx, sdy = glb_to_shell_xy(gx, gz)
         findings.append({
             "id": b, "kind": "object_clash", "with": a, "overlap_m": round(float(depth), 3),
+            "measured_by": sep["method"],
             "fix": {"move": {"id": b, "world_dxdy": [round(sdx, 3), round(sdy, 3)],
                              "dist_m": round(float(depth), 3)},
                     "or_move": {"id": a, "world_dxdy": [round(-sdx, 3), round(-sdy, 3)]},
