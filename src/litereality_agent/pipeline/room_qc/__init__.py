@@ -10,6 +10,8 @@ DETECT — read only, never edits a room:
 
     collision.py  the gate: one glb in, findings + an exit code out
     checks.py     the box report over room_layout.json + SHELL (no compile needed)
+    support.py    what holds every object up — nothing floats. Report only: a floating object is a
+                  MISSING SUPPORT, not a misplaced one, so there is nothing safe to auto-fix.
 
 REPAIR — the only things here that write `Room.py`:
 
