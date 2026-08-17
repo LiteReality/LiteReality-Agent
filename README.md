@@ -1,19 +1,28 @@
-<p align="center">
-<h1 align="center">LiteReality-Agent</h1>
-<h3 align="center">An Agentic System for Interactable 3D Indoor Scene Reconstruction</h3>
-</p>
-<p align="center">
-  <h3 align="center"><a href="https://litereality.github.io/Litereality-agent-site/">Website</a> | <a href="https://litereality.github.io/Litereality-agent-site/litereality-agent-post/">Blog</a> | <a href="https://apps.apple.com/gb/app/litereality/id6774158260">LiteReality Scanner</a> | Technical Report (coming soon)</h3>
-</p>
-
-<p align="center">
-  <img src="assets/demo.jpg" width="720"
-       alt="RGBD scan on the left, agentic reconstruction on the right">
-</p>
+<h1>
+  <a href="#"><img alt="LiteReality-Agent" src="assets/banner.png" width="100%"/></a>
+</h1>
 
 An open-source, end-to-end toolkit for reconstructing interactable indoor 3D scenes. Scan a room
-with the [LiteReality Scanner](https://apps.apple.com/gb/app/litereality/id6774158260); the agent turns it into
-a complete, graphics-ready scene with articulated assets.
+with the [LiteReality Scanner](https://apps.apple.com/gb/app/litereality/id6774158260); the agent
+turns it into a complete, graphics-ready scene with articulated assets.
+
+<p>
+  <a href="https://litereality.github.io/Litereality-agent-site/" alt="Website">
+    <img src="https://img.shields.io/badge/Website-litereality.github.io-D58236">
+  </a>
+  <a href="https://litereality.github.io/Litereality-agent-site/litereality-agent-post/" alt="Blog">
+    <img src="https://img.shields.io/badge/Blog-read%20the%20post-363634">
+  </a>
+  <a href="https://apps.apple.com/gb/app/litereality/id6774158260" alt="LiteReality Scanner">
+    <img src="https://img.shields.io/badge/LiteReality%20Scanner-App%20Store-363634?logo=apple&logoColor=white">
+  </a>
+  <img src="https://img.shields.io/badge/Technical%20Report-coming%20soon-lightgrey">
+</p>
+
+<p align="center">
+  <img src="assets/demo.jpg" width="80%"
+       alt="RGBD scan on the left, agentic reconstruction on the right">
+</p>
 
 ## How to use
 
