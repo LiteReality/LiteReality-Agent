@@ -380,6 +380,22 @@ wheels = [
 ]
 
 [[package]]
+name = "coacd"
+version = "1.0.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/7b/f931ae04532bb581ae51732b270f3d31aaebf453941b4850e8aa2d104af6/coacd-1.0.12-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:cf208fe22338e6b44f52e70f4d159a4a101f7c9907438a3786f4814f16e80eeb", size = 3424127, upload-time = "2026-08-13T23:54:01.24Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/8d/473be0e7f95bc0c4d7b8ba341aa567feb9f09a965079bd1d74023bfc5607/coacd-1.0.12-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7d56a1f02cc79ee0406f79aa791afa630daeb86cfb3c0c83ec562fe736016bfd", size = 2584737, upload-time = "2026-08-13T23:54:02.673Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/76/686d2fe66129fb1d634867832ce2a07051edaa1f8856fa2fa85fc8ab70a7/coacd-1.0.12-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1ee175e108351250be8839922e8acb410957583d19d5660b4c4952ed1de947fa", size = 2651576, upload-time = "2026-08-13T23:54:03.909Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/1b/78ad57b0ccef627ac1f8509ee828c5c3d12f752346655d5fd9571cea5904/coacd-1.0.12-cp39-abi3-win_amd64.whl", hash = "sha256:b5140e0e45f50ba95a53ba08dd2e76b50cfc5c225fd890b10a53530ecbe37a3f", size = 1485530, upload-time = "2026-08-13T23:54:05.833Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1276,6 +1292,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "claude-agent-sdk" },
+    { name = "coacd" },
     { name = "fastapi" },
     { name = "google-genai" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1322,6 +1339,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.40.0" },
     { name = "claude-agent-sdk" },
+    { name = "coacd" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "modal", marker = "extra == 'modal'", specifier = ">=1.3,<2" },
