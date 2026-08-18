@@ -45,6 +45,10 @@ dependencies = [
     # Convex pieces are closed, so the distance is real. Without this the code still runs and falls
     # back to the AABB estimate, which is the old (worse) behaviour rather than a crash.
     "coacd",
+    # QC support check. trimesh's ray caster needs an r-tree for its broad phase, and the support
+    # check is all ray casts — without this `room_qc.support` raises on the first object instead of
+    # reporting. Small pure wheel on every platform we support, no compiler.
+    "rtree>=1.4.1",
     # viewer (later)
     "fastapi>=0.111.0",
     "uvicorn>=0.30.0",
