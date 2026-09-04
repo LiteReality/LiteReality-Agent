@@ -95,9 +95,11 @@ def test_objects_pkl_round_trips_through_the_shell(tmp_path):
     assert changed["moved"] == ["Storage0"]
     assert entries[0]["file"] == "./x.usda" and entries[0]["mesh_id"] == "Storage0"
     assert entries[0]["top_down_rect"] == [(0, 0)]
-    # ARKit y stays the height, x/z the floor plane
+    # SHELL (x, y, z) -> ARKit (x, z, -y): height swaps back to ARKit's y, and the plan axis is
+    # negated, because ARKIT_TO_Z_UP is (x, y, z) -> (x, -z, y) and this is its inverse.
     assert entries[0]["position"][0] == pytest.approx(1.5)
-    assert entries[0]["position"][2] == pytest.approx(2.0)
+    assert entries[0]["position"][1] == pytest.approx(0.4)
+    assert entries[0]["position"][2] == pytest.approx(-2.0)
 
 
 def test_a_dropped_object_is_removed_and_nothing_is_invented():
