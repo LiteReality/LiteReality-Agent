@@ -43,3 +43,6 @@ __MACOSX
 
 # macOS finder junk
 .DS_Store
+
+# the standalone layout prototype: its arena, viewers and benchmark artifacts
+physical_engine/out/

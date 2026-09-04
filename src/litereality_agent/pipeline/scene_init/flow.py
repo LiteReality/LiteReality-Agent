@@ -30,6 +30,7 @@ from pathlib import Path
 from litereality_agent import console, telemetry
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest import merge_boxes
+from litereality_agent.pipeline.scene_init import layout
 from litereality_agent.pipeline.scene_init.ingest.crop import crop_objects
 from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
 from litereality_agent.pipeline.scene_init.ingest.extract import extract_scene
@@ -129,6 +130,22 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     telemetry.stage("box_merge", scan, "start")
     merge_res = merge_boxes.merge_for_scan(scan)
     telemetry.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
+
+    # 1c. layout repair — settle the LAYOUT while it is still only boxes. Same window as the merge
+    # above and for the same reason: after this point every mistake in a box gets paid for
+    # repeatedly. A duplicate detection becomes two generated assets; a counter run recorded half a
+    # metre too deep becomes an asset generated at the wrong extent and then squashed to fit; a box
+    # that moves after its crop was cut leaves the reference image describing geometry that no
+    # longer exists. Repairing here costs nothing and the correction propagates to the crop, the
+    # references, the chair clustering and the reconstruction for free.
+    # $LR_LAYOUT=0 opts out; $LR_LAYOUT_AGENT=1 lets it consult the reference photographs.
+    telemetry.stage("layout", scan, "start")
+    layout_res = layout.run_layout(scan)
+    telemetry.stage("layout", scan, "done",
+                    before=layout_res.get("before", 0), after=layout_res.get("after", 0),
+                    moved=len(layout_res.get("moved", [])),
+                    resized=len(layout_res.get("resized", [])),
+                    dropped=len(layout_res.get("dropped", [])))
 
     # 2. per-object crops
     # Reuse mirrors extract_scene above: the stage inspects the disk and decides for itself, rather
