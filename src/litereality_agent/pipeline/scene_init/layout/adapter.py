@@ -29,6 +29,17 @@ import numpy as np
 
 __all__ = ["shell_from_scene_data", "apply_to_objects", "load_objects"]
 
+MIN_PLATE_FRACTION = 0.30   # a floor covering less of its own walls than this is not believable
+
+
+def _polygon_area(verts: list[list[float]], faces: list[list[int]]) -> float:
+    """Total XY area of the floor triangles, for sanity-checking the plate."""
+    total = 0.0
+    for a, b, c in faces:
+        (ax, ay), (bx, by), (cx, cy) = verts[a][:2], verts[b][:2], verts[c][:2]
+        total += abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0
+    return total
+
 
 def _as_list(value) -> list[float]:
     return [float(v) for v in np.asarray(value).reshape(-1)]
@@ -73,6 +84,23 @@ def shell_from_scene_data(scene_data_dir: str | Path, *, thickness: float = 0.16
         # ARKit (x, y, z) -> SHELL (x, z, y): the horizontal plane becomes XY, height becomes Z
         verts += [[float(p[0]), float(p[2]), float(p[1])] for p in points]
         faces += [[base, base + i, base + i + 1] for i in range(1, len(points) - 1)]
+
+    # A floor plate has to be plausible before it is trusted. Some captures hand back a floor
+    # entity whose transform collapses it: Airbnb-Cam's is 0.27 m2 and 4 cm wide against a room
+    # nearly 3 m across, and taking it at face value put EVERY object "off the floor plate" —
+    # seven violations that were all artefacts of one bad mesh. A plate that covers almost none of
+    # the area its own walls enclose is not a plate, and the honest response is to decline the test
+    # rather than to report what it says. `check` then falls back to the wall bounds, which is
+    # weaker but true.
+    if verts:
+        plate = _polygon_area(verts, faces)
+        wall_points = [p for w in walls.values() for p in (w["start"], w["end"])]
+        if wall_points:
+            xs = [p[0] for p in wall_points]
+            ys = [p[1] for p in wall_points]
+            enclosed = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            if enclosed > 0 and plate < MIN_PLATE_FRACTION * enclosed:
+                verts, faces = [], []
 
     floor_z = min((v[2] for v in verts), default=min(floor_y, default=0.0))
     ceiling_z = floor_z + max((w["height"] for w in walls.values()), default=2.5)
