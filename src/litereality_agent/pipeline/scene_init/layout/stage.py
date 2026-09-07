@@ -10,6 +10,11 @@ over a geometry edge case — is worse than the misplacement it was trying to fi
     LR_LAYOUT_AGENT=1  let the agent look at the reference photographs for what geometry cannot
                        settle (off by default: it costs model calls, and the deterministic pass
                        already clears 19 of 21 captures on its own)
+    LR_LAYOUT_DROP=1   allow the pass to DELETE a duplicate detection (off by default: a wrong
+                       deletion is the one failure here that nothing downstream reports)
+    LR_LAYOUT_VIZ=0    do not draw the before/after plan (on by default — see report.py; it is
+                       string building, costs milliseconds, and a run that repairs a room without
+                       leaving a picture of the repair cannot be checked afterwards)
 """
 
 from __future__ import annotations
@@ -25,6 +30,43 @@ __all__ = ["run_layout"]
 
 def _enabled(name: str, default: str = "1") -> bool:
     return os.environ.get(name, default) not in ("0", "false", "no", "")
+
+
+def _visualize(scan: str, before: dict[str, Any], after: dict[str, Any],
+               scene_data_dir: Path, **kwargs) -> str | None:
+    """Draw the pass and save it. Returns the path, or None if it was off or could not be drawn.
+
+    The canonical copy sits beside ``layout_report.json``, tied to the data it describes. A second
+    goes under ``traces/``, which is where a person browsing a finished run actually looks — the
+    stage log for this pass is already there, and a plan filed three levels deeper inside the
+    preprocessing work tree is one nobody opens.
+
+    Its own try/except, deliberately narrow: the repair has already been written to disk by the
+    time this runs, and failing to draw a picture of a completed repair must not report the repair
+    as failed.
+    """
+    if not _enabled("LR_LAYOUT_VIZ"):
+        return None
+    try:
+        from . import report
+
+        path = report.write(scene_data_dir / "layout.html", scan, before, after, **kwargs)
+        try:
+            from litereality_agent.pipeline.scene_init import paths as config
+
+            traces = config.traces_dir(scan) / "layout.html"
+            if traces.resolve() != path.resolve():
+                traces.parent.mkdir(parents=True, exist_ok=True)
+                traces.write_bytes(path.read_bytes())
+                path = traces
+        except Exception:       # noqa: BLE001 — a standalone run has no traces tree; keep the first
+            pass
+        print(f"  [layout] plan written to {path}", flush=True)
+        return str(path)
+    except Exception as exc:    # noqa: BLE001
+        print(f"  [layout] visualization unavailable (non-fatal): "
+              f"{type(exc).__name__}: {exc}", flush=True)
+        return None
 
 
 def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
@@ -49,10 +91,19 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
             return {"skipped": "no objects.pkl"}
 
         shell = adapter.shell_from_scene_data(scene_data_dir)
-        before = [v for v in check(shell) if v.severity == "error"]
+        found = check(shell)
+        before = [v for v in found if v.severity == "error"]
         if not before:
+            # Still draw it. "Already sound" is a claim about the room, and the plan is what lets
+            # someone see that the room it is a claim about is the room they scanned — an empty
+            # object set and a correctly placed one both report zero violations.
             print(f"  [layout] {len(shell['objects'])} objects, already sound", flush=True)
-            return {"before": 0, "after": 0, "moved": [], "resized": [], "dropped": []}
+            summary = {"before": 0, "after": 0, "moved": [], "resized": [], "dropped": []}
+            drawn = _visualize(scan, shell, shell, scene_data_dir, violations_before=found,
+                               violations_after=found, actions=[], mode="nothing to repair")
+            if drawn:
+                summary["visualization"] = drawn
+            return summary
 
         if use_agent is None:
             use_agent = _enabled("LR_LAYOUT_AGENT", "0")
@@ -63,7 +114,8 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
         else:
             repaired, _moves, actions = repair(shell)
 
-        after = [v for v in check(repaired) if v.severity == "error"]
+        settled = check(repaired)
+        after = [v for v in settled if v.severity == "error"]
         entries = pickle.load(open(pkl, "rb"))
         changed = adapter.apply_to_objects(entries, repaired)
 
@@ -76,6 +128,11 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
         report = {"before": len(before), "after": len(after),
                   "actions": [a.get("action") for a in actions], **changed,
                   "remaining": [str(v) for v in after]}
+        drawn = _visualize(scan, shell, repaired, scene_data_dir, violations_before=found,
+                           violations_after=settled, actions=actions,
+                           mode="agent-assisted" if use_agent else "deterministic")
+        if drawn:
+            report["visualization"] = drawn
         (scene_data_dir / "layout_report.json").write_text(
             json.dumps(report, indent=2), encoding="utf-8")
 

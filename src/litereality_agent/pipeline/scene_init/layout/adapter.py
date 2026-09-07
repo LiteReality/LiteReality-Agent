@@ -158,6 +158,11 @@ def shell_from_scene_data(scene_data_dir: str | Path, *, thickness: float = 0.16
             "size": [_r(width), _r(depth), _r(height)],
             "yaw": _r(math.degrees(math.atan2(along[1], along[0])), 2),
         }
+        # Carried, not derived: the repair may not delete a unit the box merge assembled, and the
+        # compound NAME is not proof of one — an object called `Sink_Storage0` in a capture that
+        # never ran the merge is just a detection with an underscore in it.
+        if entry.get("merged_from"):
+            objects[object_id]["merged_from"] = list(entry["merged_from"])
 
     return {"walls": walls, "openings": {}, "objects": objects,
             "floor": {"verts": verts, "faces": faces},

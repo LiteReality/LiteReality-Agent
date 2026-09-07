@@ -59,6 +59,7 @@ __all__ = [
     "Node", "Edge", "SceneGraph", "build_graph", "is_wall_hung",
     "FURNITURE", "FLOOR_STANDING", "WALL_MOUNTED", "WALL_HUNG_CAPABLE", "WALL_HUNG_MIN_Z",
     "PASSTHROUGH", "OPEN_FRAME", "EXPECTED_CONTAINMENT", "GROUP_PARENTS", "expected_pair",
+    "category_tokens", "in_category",
 ]
 
 # ── category knowledge (carried over from pipeline/room_qc so both agree) ────
@@ -140,10 +141,42 @@ def is_wall_hung(obj: dict[str, Any], walls: dict[str, Any], floor_z: float) -> 
     return best[1] if best else None
 
 
-def expected_pair(a: str, b: str, table: Iterable[tuple[str, str]] = EXPECTED_CONTAINMENT) -> bool:
-    """Is this category pair an overlap we EXPECT? Order-independent."""
+def category_tokens(category: str) -> set[str]:
+    """The categories a name stands for. ``oven_storage_stove`` is an oven AND a storage AND a stove.
+
+    The box merge fuses a counter run into one object and names it after its members, so a scan
+    that has been through it carries categories no table in this package was written against.
+    Nothing errors — the lookups simply stop matching, silently, and every category rule the merged
+    unit should have been subject to switches off for it.
+    """
+    return {token for token in (category or "").split("_") if token}
+
+
+def in_category(category: str, table: Iterable[str]) -> bool:
+    """Does this category — compound names included — belong to ``table``?"""
     table = set(table)
-    return (a, b) in table or (b, a) in table
+    return category in table or bool(category_tokens(category) & table)
+
+
+def expected_pair(a: str, b: str, table: Iterable[tuple[str, str]] = EXPECTED_CONTAINMENT) -> bool:
+    """Is this category pair an overlap we EXPECT? Order-independent.
+
+    A merged run is expanded to its members, which is the whole point: Kitchen's ``Sink1`` sits
+    inside ``Sink_Storage0``, and that is ``("sink", "storage")`` — already in the table, already
+    meant to be exempt, and missed only because the merge renamed one side. Read literally it was
+    reported as a collision, and the repair then tried to resolve it by deleting the counter run.
+
+    Only ONE side is expanded. Two compound names are matched exactly, because expanding both lets
+    any two merged counter runs find some member pair in the table and exempt a genuine
+    interpenetration between them.
+    """
+    table = set(table)
+    if (a, b) in table or (b, a) in table:
+        return True
+    ta, tb = category_tokens(a), category_tokens(b)
+    if len(ta) > 1 and len(tb) > 1:
+        return False
+    return any((x, y) in table or (y, x) in table for x in ta for y in tb)
 
 
 # ── graph types ──────────────────────────────────────────────────────────────
@@ -606,7 +639,15 @@ def build_graph(shell: dict[str, Any], *, name: str = "room", meta: dict[str, An
             if expected_pair(cat_a, cat_b):
                 # EXPECTED_CONTAINMENT is written (contained, container), so the pair itself says
                 # which way the edge points: the chair goes under the table, never the reverse.
-                inner = a_id if (cat_a, cat_b) in EXPECTED_CONTAINMENT else b_id
+                if len(category_tokens(cat_a)) > 1 or len(category_tokens(cat_b)) > 1:
+                    # A merged run names no direction: ``storage`` inside ``oven_storage_stove``
+                    # matches ``("oven", "storage")`` in BOTH orders, and reading the table would
+                    # put the counter run inside the cabinet it swallowed. Volume is not ambiguous.
+                    volumes = {i: o["size"][0] * o["size"][1] * o["size"][2]
+                               for i, o in ((a_id, a), (b_id, b))}
+                    inner = min(volumes, key=volumes.get)
+                else:
+                    inner = a_id if (cat_a, cat_b) in EXPECTED_CONTAINMENT else b_id
                 outer = b_id if inner == a_id else a_id
                 graph.edges.append(Edge(inner, outer, "tucked_under", {"depth": round(depth, 4)}))
             elif cat_a in PASSTHROUGH or cat_b in PASSTHROUGH \

@@ -10,18 +10,24 @@ cannot.
 
 The actions are ordered the way a person would try them, least invasive first:
 
-1. ``drop``        one of two boxes that were already sitting on top of each other in the INPUT is
-                   a duplicate detection, not a collision. Deleting the extra is free; moving it
-                   is nonsense.
-2. ``snap``        an installed unit reads as inside its wall because its depth was measured long.
+0. ``drop``        OFF by default; ``$LR_LAYOUT_DROP=1`` arms it. Two boxes already sitting on top
+                   of each other in the input are one object detected twice, and deleting the extra
+                   was cheap and usually right — but "usually" is the problem. A deletion is the
+                   one action here with no visible failure mode: a move that goes wrong is a box in
+                   an odd place, while a wrong deletion is an oven that is simply not in the room,
+                   and nothing downstream reports the absence. Kitchen lost a counter run assembled
+                   from five detections that way. A duplicate left standing costs a redundant
+                   generated asset, which is visible, cheap and reversible; a wrong deletion is
+                   none of those. The trade is not close.
+1. ``snap``        an installed unit reads as inside its wall because its depth was measured long.
                    Putting it flush against that wall is a restoration, not a correction.
-3. ``dewrap``      two units on the SAME wall overlap along it. That is a one-dimensional problem
+2. ``dewrap``      two units on the SAME wall overlap along it. That is a one-dimensional problem
                    — slide them apart along the wall — and solving it in 2D is what walks a
                    dishwasher off its cabinet line.
-4. ``slide``       an installed unit slides along its own wall. It never leaves it.
-5. ``separate``    ordinary pair separation along the minimum translation vector, carrying the
+3. ``slide``       an installed unit slides along its own wall. It never leaves it.
+4. ``separate``    ordinary pair separation along the minimum translation vector, carrying the
                    object's group with it so a table takes its chairs.
-6. ``shrink``      a merged box recorded deeper than the thing it bounds, trimmed and re-seated
+5. ``shrink``      a merged box recorded deeper than the thing it bounds, trimmed and re-seated
                    against its wall. Bounded, and only when it beats every cheaper action.
 
 Scoring is lexicographic: violations first, then wall anchors broken, then total displacement. So
@@ -33,6 +39,7 @@ from __future__ import annotations
 
 import copy
 import math
+import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -42,7 +49,7 @@ from . import adjust
 from .adjust import (ANCHOR_TOL, FLOOR_OUT_TOL, SEPARATION, Move, check,
                      _floor_triangles, _inside_floor, _obb,
                      _support, ground, reseat_openings)
-from .graph import build_graph, obb_mtv, wall_distance
+from .graph import build_graph, in_category, obb_mtv, wall_distance
 from .shell import object_footprint, wall_frame
 
 __all__ = ["duplicates", "score", "repair", "solve_v11"]
@@ -50,6 +57,16 @@ __all__ = ["duplicates", "score", "repair", "solve_v11"]
 REVIEW_SHIFT = 0.22  # past this, a move is a claim about the room rather than a correction
 DUP_SAME = 0.50      # overlap / smaller volume, for two boxes of the same category
 DUP_CROSS = 0.75     # more is demanded across categories: a tucked chair reaches ~0.5 honestly
+# Two detections of ONE object are about the same size. Past this ratio the big box is not a
+# duplicate of the small one, it CONTAINS it — a cabinet standing inside a counter run, a basin
+# undermounted in it. Kitchen's pair were 5.9x and 65x apart and both scored a perfect 1.00 on an
+# overlap measure normalised by the smaller box, which is exactly what containment looks like.
+DUP_VOLUME_RATIO = 3.0
+
+
+def _dropping_armed() -> bool:
+    """Deletion is opt-in. Read per call, so a test or a run can arm it without a reimport."""
+    return os.environ.get("LR_LAYOUT_DROP", "0") not in ("0", "false", "no", "")
 SHRINK_MAX = 0.35    # a box may not lose more than this fraction of a dimension
 # Only these get trimmed. RoomPlan merges ADJACENT INSTALLED units — a counter with the wall behind
 # it, an oven into its cabinet run — and records the result deeper than the thing it bounds. It
@@ -115,6 +132,9 @@ def duplicates(shell: dict[str, Any]) -> set[tuple[str, str]]:
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
             a, b = objects[ids[i]], objects[ids[j]]
+            big, small = max(_volume(a), _volume(b)), min(_volume(a), _volume(b))
+            if big > DUP_VOLUME_RATIO * small:
+                continue                    # containment, not duplication — see DUP_VOLUME_RATIO
             same = a.get("category") == b.get("category")
             if _overlap_fraction(a, b) >= (DUP_SAME if same else DUP_CROSS):
                 found.add((ids[i], ids[j]))
@@ -358,13 +378,20 @@ def _candidates(shell, violation, held, family, dups) -> list[Candidate]:
         return []
     out: list[Candidate] = []
 
-    # 1. a duplicate detection is deleted, never rearranged
-    for a_id, b_id in dups:
+    # 0. a duplicate detection is deleted, never rearranged — only when armed. See the module
+    #    docstring: this is the one action whose failure is invisible downstream.
+    for a_id, b_id in (dups if _dropping_armed() else ()):
         if violation.object not in (a_id, b_id):
             continue
         other = b_id if a_id == violation.object else a_id
         for victim in (violation.object, other):
             if victim in family:            # never delete something that hosts a group
+                continue
+            if objects[victim].get("merged_from"):
+                # The box merge fused this unit out of several detections one step earlier, on
+                # evidence this pass does not have. Undoing that silently — and it is silent, the
+                # object simply stops existing — costs the scan every member of the run: Kitchen's
+                # Oven_Storage_Stove0 was five boxes, two ovens and two stoves among them.
                 continue
             out.append(Candidate("drop", f"{victim} duplicates {a_id if victim == b_id else b_id}",
                                  (lambda v: lambda s: s["objects"].pop(v, None))(victim)))
@@ -428,7 +455,7 @@ def _candidates(shell, violation, held, family, dups) -> list[Candidate]:
                                                                                       violation.object)))
             # 6. a box measured deeper than the thing it bounds, trimmed and re-seated
             depth = adjust._wall_crossing(obj, wall)
-            may_shrink = obj.get("category", "") in SHRINKABLE and bool(near)
+            may_shrink = in_category(obj.get("category", ""), SHRINKABLE) and bool(near)
             trimmed = _shrink_to_clear(obj, wall, depth) if (depth > 0 and may_shrink) else None
             if trimmed:
                 size, _which = trimmed
@@ -456,7 +483,8 @@ def _candidates(shell, violation, held, family, dups) -> list[Candidate]:
                                  (lambda d, o: lambda s: _shift(s, o, d, family))(back,
                                                                                   violation.object)))
 
-    if violation.kind in ("wall_clash", "outside_room") and obj.get("category", "") in SHRINKABLE:
+    if violation.kind in ("wall_clash", "outside_room") and in_category(obj.get("category", ""),
+                                                                        SHRINKABLE):
         near2 = sorted(attachments(obj, walls, tol=0.45))
         for i in range(len(near2)):
             for j in range(i + 1, len(near2)):
@@ -571,7 +599,7 @@ def repair(shell: dict[str, Any], *, max_rounds: int = 14, beam: int = 3,
     held = {oid: set(attachments(o, work.get("walls") or {}))
             for oid, o in (work.get("objects") or {}).items()}
     held = {k: v for k, v in held.items() if v}
-    dups = duplicates(baseline)
+    dups = duplicates(baseline) if _dropping_armed() else set()
     family = groups(work)
     log: list[dict] = []
 

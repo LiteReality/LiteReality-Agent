@@ -221,6 +221,11 @@ def apply_merges(
         entry = _union_obb([by[m] for m in present])
         entry["object_type"] = name
         entry["mesh_id"] = name
+        # Provenance travels WITH the box. `members.json` beside the references records the same
+        # thing, but a later stage holding only objects.pkl cannot reach it, and the layout pass
+        # that runs next needs to know this unit was assembled rather than detected — otherwise it
+        # reads a run swallowing its own cabinet as a duplicate and deletes the run.
+        entry["merged_from"] = list(present)
         new_entries.append(entry)
         consumed.update(present)
         merged[name] = present
