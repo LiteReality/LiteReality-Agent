@@ -236,6 +236,56 @@ def _apply_shell_merges(shell: dict, scan: str) -> None:
     shell["objects"] = objs
 
 
+def _apply_layout(shell: dict, scan: str) -> None:
+    """In place: adopt the object boxes the layout pass settled, from `scene_data/layout_shell.json`.
+
+    The SHELL above is re-extracted from `room.usdz` under Blender, which is right for walls,
+    openings and the floor and wrong for the objects. `scene_init/layout` repairs the object boxes
+    at ingest — before crops — so every crop, reference image and generated GLB is built against the
+    REPAIRED box. Placing those assets back into the scanned box undoes the repair at the last step
+    and, worse, disagrees with the asset it is placing: Kitchen's counter run was generated for a
+    63 cm depth and would be scaled into the 87 cm box the scan measured.
+
+    So the object boxes come from the layout pass and everything else keeps coming from the usdz.
+    On the merged units this also settles a disagreement between two union computations —
+    `merge_boxes._union_obb` unions the ARKit pkl entries, `_union_box` above unions the extracted
+    SHELL boxes, and on Kitchen they land 33 cm apart. The pkl-derived one wins because it is the
+    box the object stage actually used.
+
+    Never raises: a missing or malformed file leaves the export exactly as it was.
+    """
+    path = config.scene_data_dir(scan) / "layout_shell.json"
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"  [layout] ignoring unreadable {path.name}: {exc}")
+        return
+
+    objs = shell.get("objects") or {}
+    adopted, moved = 0, 0
+    for name, box in (payload.get("objects") or {}).items():
+        current = objs.get(name)
+        if not current or "center" not in box or "size" not in box:
+            continue
+        if (current.get("center") != box["center"] or current.get("size") != box["size"]
+                or current.get("yaw") != box.get("yaw")):
+            moved += 1
+        current["center"] = list(box["center"])
+        current["size"] = list(box["size"])
+        if box.get("yaw") is not None:
+            current["yaw"] = box["yaw"]
+        adopted += 1
+    for name in (payload.get("dropped") or []):
+        if objs.pop(name, None) is not None:
+            print(f"  [layout] SHELL box {name} removed — the layout pass dropped it")
+    shell["objects"] = objs
+    if adopted:
+        print(f"  [layout] SHELL adopted {adopted} object boxes from the layout pass "
+              f"({moved} differ from the scan)")
+
+
 def export(scan: str, out_root: Path | None = None) -> Path | None:
     scan = config.scan_name(scan)  # accept a name or a path to the scan folder
     recon = config.reconstruct_dir(scan)
@@ -270,6 +320,9 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
     # object's members.json) into the SHELL's object boxes, so the assembler has a box named for the
     # merged object to place its GLB into (else the merged GLB has no box and is dropped).
     _apply_shell_merges(shell, scan)
+    # AFTER the merges: the layout pass works on merged units, so its box for `Sink_Storage0` only
+    # has somewhere to land once the merge has created that name in the SHELL.
+    _apply_layout(shell, scan)
     # build_room.py lives in room_ops/compile; HERE is room_ops/export.
     room_py = (HERE.parent / "compile" / "build_room.py").read_text(encoding="utf-8")
     # SHELL MUST be defined BEFORE `ROOM = main()` runs — else _load_shell can't see the embedded

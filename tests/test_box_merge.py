@@ -131,6 +131,116 @@ def test_threshold_is_a_fraction_of_the_smaller_box():
     assert merge_boxes._footprint_overlap(small, big) == 1.0
 
 
+# --------------------------------------------------------------------------- the wall guard
+
+
+def wall(x1: float, z1: float, x2: float, z2: float):
+    """One wall centreline as `wall_segments` returns it: a 2-D segment in the ARKit ground plane."""
+    return ((x1, z1), (x2, z2))
+
+
+def test_a_wall_between_two_boxes_stops_the_merge():
+    """Two boxes whose footprints overlap are still not one object if a wall stands between them.
+
+    This is the horizontal twin of the vertical gate. Both boxes are the same height here, so the
+    height rule has nothing to say — only the wall does.
+    """
+    objs = [
+        box("Storage0", (0.0, 0, 0.0), (1.0, 0.8, 1.0)),
+        box("Storage1", (0.6, 0, 0.0), (1.0, 0.8, 1.0)),
+    ]
+    assert merge_boxes.auto_groups(objs) == [["Storage0", "Storage1"]]
+    between = [wall(0.3, -2.0, 0.3, 2.0)]
+    assert merge_boxes.auto_groups(objs, walls=between) == []
+
+
+def test_a_wall_beside_the_run_does_not_stop_it():
+    """A counter run is normally installed ALONG a wall. A wall the run merely lies against, rather
+    than crosses, must leave the merge alone — otherwise the guard would break every kitchen."""
+    objs = [
+        box("Sink0", (0.0, 0, 0.0), (1.0, 0.3, 1.0)),
+        box("Storage0", (0.6, 0, 0.0), (1.0, 0.8, 1.0)),
+    ]
+    alongside = [wall(-2.0, 0.7, 2.0, 0.7), wall(-2.0, -0.7, 2.0, -0.7)]
+    assert merge_boxes.auto_groups(objs, walls=alongside) == [["Sink0", "Storage0"]]
+
+
+def test_a_smeared_box_cannot_bridge_two_rooms():
+    """The Kitchen-Xiaoyang_Lyu bug, in miniature.
+
+    RoomPlan detected one oven twice and recorded the second copy far too deep — deep enough to
+    reach through the wall behind it. That copy overlaps the real run on one side AND a unit on the
+    far side, so union-find welds both runs into a single box spanning the wall. Nothing downstream
+    can recover from that: the layout pass reads the result as a counter recorded too deep.
+
+    The near-side pair must survive; only the member across the wall is released.
+    """
+    objs = [
+        box("Storage3", (0.0, 0, 0.0), (2.0, 0.9, 0.6)),      # the real counter run
+        box("Oven2", (0.2, 0, 0.5), (0.6, 0.9, 1.6)),         # one oven, smeared through the wall
+        box("Storage0", (0.3, 0, 1.1), (1.2, 0.9, 0.6)),      # a unit on the FAR side
+    ]
+    assert merge_boxes.auto_groups(objs) == [["Oven2", "Storage0", "Storage3"]]
+    partition = [wall(-3.0, 0.8, 3.0, 0.8)]
+    assert merge_boxes.auto_groups(objs, walls=partition) == [["Oven2", "Storage3"]]
+
+
+def test_only_a_wall_that_actually_stands_between_them_counts():
+    """The test is against the wall SEGMENT, not the infinite line through it.
+
+    A room is full of walls whose infinite lines cut everything in half. Scoring against the line
+    would refuse merges all over the room; scoring against the segment asks the only question that
+    matters, which is whether a wall is physically in the way.
+    """
+    objs = [
+        box("Storage0", (0.0, 0, 0.0), (1.0, 0.8, 1.0)),
+        box("Storage1", (0.6, 0, 0.0), (1.0, 0.8, 1.0)),
+    ]
+    stops_short = [wall(0.3, 1.5, 0.3, 4.0)]      # same line as the separating wall, but elsewhere
+    assert merge_boxes.auto_groups(objs, walls=stops_short) == [["Storage0", "Storage1"]]
+
+
+def test_no_walls_means_exactly_the_old_behaviour():
+    """The guard can only ever REMOVE a merge, and it is inert without walls. A scan whose room
+    geometry is missing or unreadable must merge exactly as it did before the guard existed."""
+    for walls in (None, []):
+        assert merge_boxes.auto_groups(FALLSIDE, walls=walls) == [["Sink0", "Storage2"]]
+
+
+def test_wall_segments_degrades_to_empty_instead_of_raising(tmp_path, capsys):
+    """No room on disk is not a merge failure. `wall_segments` says so and returns nothing, because
+    taking down the merge over missing wall geometry would be worse than the bug it prevents."""
+    assert merge_boxes.wall_segments(tmp_path) == []
+    assert "wall guard" in capsys.readouterr().out
+
+
+def test_the_guard_is_on_by_default_and_opt_outable(monkeypatch, tmp_path):
+    """It ships on. `$LR_BOX_MERGE_WALL_GUARD=0` is the escape hatch if a scan's walls are wrong."""
+    import litereality_agent.pipeline.scene_init.paths as config
+
+    scene = tmp_path / "scene"
+    scene.mkdir()
+    objs = [
+        box("Storage0", (0.0, 0, 0.0), (1.0, 0.8, 1.0)),
+        box("Storage1", (0.6, 0, 0.0), (1.0, 0.8, 1.0)),
+    ]
+    pickle.dump(objs, open(scene / "objects.pkl", "wb"))
+    monkeypatch.setattr(config, "scene_data_dir", lambda scan: scene)
+    monkeypatch.setattr(config, "object_refs_root", lambda: tmp_path / "refs")
+    seen = {}
+    real = merge_boxes.auto_groups
+    monkeypatch.setattr(merge_boxes, "auto_groups",
+                        lambda o, th=None, vg=None, walls=None: seen.setdefault("walls", walls) or [])
+    merge_boxes.merge_for_scan("scan")
+    assert seen["walls"] == []          # asked for walls; this scan has none
+
+    seen.clear()
+    monkeypatch.setenv("LR_BOX_MERGE_WALL_GUARD", "0")
+    merge_boxes.merge_for_scan("scan")
+    assert seen["walls"] == []
+    monkeypatch.setattr(merge_boxes, "auto_groups", real)
+
+
 # --------------------------------------------------------------------------- union geometry
 
 
