@@ -116,9 +116,12 @@ def _author_options(args) -> dict:
         "materials": polish or getattr(args, "materials", False),
         "quality_pass": getattr(args, "quality_pass", False),
     }
-    steps = getattr(args, "author_steps", None)
-    if steps:
-        opts["step_budget"] = steps
+    # Only pass what was actually given, so the stage keeps its own defaults for the rest.
+    for name, key in (("author_profile", "profile"), ("author_steps", "step_budget"),
+                      ("author_turns", "max_turns")):
+        value = getattr(args, name, None)
+        if value:
+            opts[key] = value
     return opts
 
 
@@ -146,6 +149,12 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
         help="tool-call budget for the authoring session (default 100); "
              "a low value returns an unfinished room and says so",
     )
+    parser.add_argument(
+        "--author-profile", choices=["base", "detail", "simulation"],
+        help="authoring brief: base (materials + wall fixtures), detail (multi-part fixtures), "
+             "simulation (adds real lighting, small objects, and support declarations)",
+    )
+    parser.add_argument("--author-turns", type=int, help="authoring hard turn backstop (default 140)")
 
 
 def _simulate_options(args) -> dict:
