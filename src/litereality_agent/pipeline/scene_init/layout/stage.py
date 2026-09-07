@@ -69,6 +69,44 @@ def _visualize(scan: str, before: dict[str, Any], after: dict[str, Any],
         return None
 
 
+def _publish_shell(shell: dict[str, Any], scene_data_dir: Path, dropped: list[str]) -> None:
+    """Write the boxes the object stage was built against, for the room export to place into.
+
+    The scene stage does NOT read objects.pkl. `export_room` re-extracts the room from `room.usdz`
+    under Blender and embeds THAT as the SHELL in `Room.py`, which is what places every GLB — so a
+    repair made here reached the crops, the references and the generated extents, and then the
+    assembler put the asset back in the unrepaired box. A counter trimmed to 63 cm was generated at
+    63 cm and scaled into the 87 cm box the scan measured, which is the "generated at the wrong
+    extent and then squashed to fit" failure this stage exists to prevent, reintroduced one stage
+    later.
+
+    Objects only, and deliberately so. Walls, openings and the floor stay the export's, because the
+    layout pass never touches them and has no business being their source of truth.
+    """
+    # Its own guard, for the reason `_visualize` has one: by the time this runs the repair is
+    # already on disk, and failing to publish a hand-off file must not report it as failed.
+    try:
+        _write_shell(shell, scene_data_dir, dropped)
+    except Exception as exc:                # noqa: BLE001
+        print(f"  [layout] could not publish layout_shell.json (non-fatal): "
+              f"{type(exc).__name__}: {exc}", flush=True)
+
+
+def _write_shell(shell: dict[str, Any], scene_data_dir: Path, dropped: list[str]) -> None:
+    payload = {
+        "scan": scene_data_dir.name,
+        "source": "scene_init/layout",
+        "note": "object boxes AFTER the layout pass — the boxes the crops, references and "
+                "generated GLBs were built against. Overlaid onto the SHELL by room_ops export.",
+        "objects": {oid: {"category": o.get("category"), "center": list(o["center"]),
+                          "size": list(o["size"]), "yaw": o.get("yaw", 0.0)}
+                    for oid, o in (shell.get("objects") or {}).items()},
+        "dropped": list(dropped),
+    }
+    (scene_data_dir / "layout_shell.json").write_text(
+        json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
                use_agent: bool | None = None) -> dict[str, Any]:
     """Repair one scan's layout in place. Returns a summary; never raises."""
@@ -99,6 +137,7 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
             # object set and a correctly placed one both report zero violations.
             print(f"  [layout] {len(shell['objects'])} objects, already sound", flush=True)
             summary = {"before": 0, "after": 0, "moved": [], "resized": [], "dropped": []}
+            _publish_shell(shell, scene_data_dir, [])
             drawn = _visualize(scan, shell, shell, scene_data_dir, violations_before=found,
                                violations_after=found, actions=[], mode="nothing to repair")
             if drawn:
@@ -128,6 +167,7 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
         report = {"before": len(before), "after": len(after),
                   "actions": [a.get("action") for a in actions], **changed,
                   "remaining": [str(v) for v in after]}
+        _publish_shell(repaired, scene_data_dir, changed["dropped"])
         drawn = _visualize(scan, shell, repaired, scene_data_dir, violations_before=found,
                            violations_after=settled, actions=actions,
                            mode="agent-assisted" if use_agent else "deterministic")

@@ -8,6 +8,7 @@ scan, no Blender, no model.
 from __future__ import annotations
 
 import copy
+import json
 import math
 import pickle
 import re
@@ -21,6 +22,7 @@ from litereality_agent.pipeline.scene_init.layout.graph import expected_pair, in
 from litereality_agent.pipeline.scene_init.layout.repair import (SHRINKABLE, attachments,
                                                                  duplicates, repair, score)
 from litereality_agent.pipeline.scene_init.layout.stage import run_layout
+from litereality_agent.room_ops.export import export_room
 
 
 def errors(shell):
@@ -269,3 +271,71 @@ def test_a_cabinet_inside_a_merged_counter_run_is_not_a_collision():
                   "Oven_Storage_Stove0": box(2.0, 2.0, w=2.53, d=1.62, h=1.05,
                                              category="oven_storage_stove")})
     assert not [v for v in errors(shell) if v.kind == "object_clash"]
+
+
+# ── the hand-off to the scene stage ──────────────────────────────────────────
+def shell_json(objects):
+    """A SHELL in the shape `export_room` embeds into Room.py."""
+    return {"floor_z": 0.0, "ceiling_z": 2.5, "walls": {"Wall0": {"start": [0, 0], "end": [4, 0]}},
+            "openings": {}, "objects": objects, "floor": {"verts": [], "faces": []}}
+
+
+def test_the_layout_publishes_the_boxes_the_object_stage_used(tmp_path, monkeypatch):
+    """Everything downstream of the crop was built against these; the room has to place into them."""
+    scene_data(monkeypatch, tmp_path, {"Storage0": box(2.0, 2.0)})
+    run_layout("scan", scene_data_dir=tmp_path)
+
+    published = json.loads((tmp_path / "layout_shell.json").read_text())
+    assert published["objects"]["Storage0"]["center"] == [2.0, 2.0, 0.4]
+    assert published["objects"]["Storage0"]["size"] == [0.8, 0.6, 0.8]
+    assert published["dropped"] == []
+
+
+def test_the_room_export_adopts_the_layout_boxes(tmp_path, monkeypatch):
+    """The SHELL is re-extracted from room.usdz, so without this the repair never reaches the room."""
+    monkeypatch.setattr(export_room.config, "scene_data_dir", lambda scan: tmp_path)
+    (tmp_path / "layout_shell.json").write_text(json.dumps({
+        "objects": {"Storage0": {"center": [2.4, 2.0, 0.4], "size": [0.7, 0.6, 0.8], "yaw": 15.0}},
+        "dropped": []}))
+
+    shell = shell_json({"Storage0": {"category": "storage", "center": [2.0, 2.0, 0.4],
+                                     "size": [0.8, 0.6, 0.8], "yaw": 0.0},
+                        "Table0": {"category": "table", "center": [1.0, 1.0, 0.4],
+                                   "size": [1.2, 0.8, 0.7], "yaw": 0.0}})
+    export_room._apply_layout(shell, "scan")
+
+    assert shell["objects"]["Storage0"]["center"] == [2.4, 2.0, 0.4]
+    assert shell["objects"]["Storage0"]["size"] == [0.7, 0.6, 0.8]
+    assert shell["objects"]["Storage0"]["yaw"] == 15.0
+    assert shell["objects"]["Table0"]["center"] == [1.0, 1.0, 0.4], "it touched a box it was not given"
+    assert shell["walls"], "walls, openings and the floor stay the usdz's"
+
+
+def test_the_room_export_survives_a_missing_or_broken_hand_off(tmp_path, monkeypatch):
+    """A room that cannot read the layout's file must still export, unrepaired."""
+    monkeypatch.setattr(export_room.config, "scene_data_dir", lambda scan: tmp_path)
+    original = {"Storage0": {"category": "storage", "center": [2.0, 2.0, 0.4],
+                             "size": [0.8, 0.6, 0.8], "yaw": 0.0}}
+
+    shell = shell_json(copy.deepcopy(original))
+    export_room._apply_layout(shell, "scan")                       # no file at all
+    assert shell["objects"] == original
+
+    (tmp_path / "layout_shell.json").write_text("{not json")
+    shell = shell_json(copy.deepcopy(original))
+    export_room._apply_layout(shell, "scan")
+    assert shell["objects"] == original
+
+
+def test_a_box_the_layout_dropped_leaves_the_room(tmp_path, monkeypatch):
+    """Only reachable with $LR_LAYOUT_DROP=1, but the room must not keep a box whose asset is gone."""
+    monkeypatch.setattr(export_room.config, "scene_data_dir", lambda scan: tmp_path)
+    (tmp_path / "layout_shell.json").write_text(
+        json.dumps({"objects": {}, "dropped": ["Storage1"]}))
+
+    shell = shell_json({"Storage0": {"category": "storage", "center": [2.0, 2.0, 0.4],
+                                     "size": [0.8, 0.6, 0.8], "yaw": 0.0},
+                        "Storage1": {"category": "storage", "center": [2.05, 2.0, 0.4],
+                                     "size": [0.8, 0.6, 0.8], "yaw": 0.0}})
+    export_room._apply_layout(shell, "scan")
+    assert set(shell["objects"]) == {"Storage0"}
