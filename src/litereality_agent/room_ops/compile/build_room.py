@@ -195,7 +195,8 @@ def move_to_collection(obj, coll):
     coll.objects.link(obj)
 
 
-def group_fixture(name, category, parts, parent_coll="Fixtures"):
+def group_fixture(name, category, parts, parent_coll="Fixtures", *,
+                  rests_on=None, attached_to=None):
     """Bundle a wall/ceiling fixture's part-objects (frame bars, radiator fins, pen tray, faceplate,
     louvre slats …) into ONE named, hide-as-a-unit group — the fixture analogue of `_wrap_handle`
     for furniture. It creates an empty handle `name` (carrying room_id/category custom props),
@@ -213,6 +214,17 @@ def group_fixture(name, category, parts, parent_coll="Fixtures"):
     grp["room_id"] = name
     grp["category"] = category
     grp["fixture"] = True
+    # SIMULATION READINESS. A physics engine needs to know what holds what up: a mug rests on a
+    # desk that rests on the floor, a whiteboard is bolted to a wall. Geometry alone cannot say
+    # which — two boxes touching is not the same as one supporting the other, and a prop authored
+    # a millimetre proud of its surface is indistinguishable from one floating. So the author
+    # states it, and it travels with the object into `room_layout.json` where a simulator (or a
+    # QC pass) can read it back. `rests_on` = the surface it stands on; `attached_to` = what it is
+    # fixed to when it is not resting on anything (a wall, a ceiling).
+    if rests_on:
+        grp["rests_on"] = rests_on
+    if attached_to:
+        grp["attached_to"] = attached_to
     coll = get_or_make_collection(name)
     # nest this fixture's own collection under the shared Fixtures parent, so the outliner shows
     # Whiteboard0 / Radiator0 / … as tidy sub-groups rather than every part loose in one bucket.
@@ -959,7 +971,8 @@ class RoomScene:
         return mat
 
     # ---------------------------------------------------------------- index
-    def _register(self, rid, cat, meshes, source=None, handle=None):
+    def _register(self, rid, cat, meshes, source=None, handle=None,
+                  rests_on=None, attached_to=None):
         mn, mx = world_bbox(meshes)
         self.objects[rid] = {
             "id": rid,
@@ -971,6 +984,8 @@ class RoomScene:
             "size": [round(mx[i] - mn[i], 4) for i in range(3)],
             "top_z": round(mx.z, 4),
             "placeable_surface": cat in PLACEABLE_CATS,
+            "rests_on": rests_on,
+            "attached_to": attached_to,
             "source_glb": source,
         }
 
@@ -988,6 +1003,8 @@ class RoomScene:
                     mesh_descendants(o),
                     source=o.get("source_glb"),
                     handle=o.name,
+                    rests_on=o.get("rests_on"),
+                    attached_to=o.get("attached_to"),
                 )
         return self.objects
 

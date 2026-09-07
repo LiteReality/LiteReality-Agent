@@ -106,11 +106,18 @@ def _require_scene_package(target: str, context: RunContext, stage: str) -> None
 
 def _author_options(args) -> dict:
     polish = getattr(args, "polish", False)
-    return {
+    options = {
         "refine_objects": polish or getattr(args, "refine_objects", False),
         "materials": polish or getattr(args, "materials", False),
         "quality_pass": polish or getattr(args, "quality_pass", False),
     }
+    # Only pass what was actually given, so the stage keeps its own defaults for the rest.
+    for name, key in (("author_profile", "profile"), ("author_steps", "step_budget"),
+                      ("author_turns", "max_turns")):
+        value = getattr(args, name, None)
+        if value:
+            options[key] = value
+    return options
 
 
 def _add_author_options(parser: argparse.ArgumentParser) -> None:
@@ -122,6 +129,16 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--refine-objects", action="store_true")
     parser.add_argument("--materials", action="store_true")
     parser.add_argument("--quality-pass", action="store_true")
+    parser.add_argument(
+        "--author-profile", choices=["base", "detail", "simulation"],
+        help="authoring brief: base (materials + wall fixtures), detail (multi-part fixtures), "
+             "simulation (adds real lighting, small objects, and support declarations)",
+    )
+    parser.add_argument(
+        "--author-steps", type=int,
+        help="authoring tool-call budget (default 100; a simulation run wants more)",
+    )
+    parser.add_argument("--author-turns", type=int, help="authoring hard turn backstop (default 140)")
 
 
 def _add_publish_options(parser: argparse.ArgumentParser) -> None:

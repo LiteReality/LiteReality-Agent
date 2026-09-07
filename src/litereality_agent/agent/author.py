@@ -229,7 +229,125 @@ When done, summarise per wall: each fixture, its GROUP NAME (e.g. `Radiator0`), 
 it from, and note which walls you render-verified.
 """
 
-PROFILES = {"base": PROMPT, "detail": DETAIL_PROMPT}
+
+# "simulation" profile — the room as a place, not a shell: real light, real clutter, and every
+# object stating what holds it up. The base profile stops at materials and wall fixtures, which is
+# what makes a render read as a MODEL of a room rather than a room: the surfaces are right and the
+# room is empty. A desk with nothing on it is the single strongest cue that a scene is synthetic,
+# and a scene whose objects do not say what they rest on cannot be simulated no matter how good it
+# looks. Both are asked for here, explicitly, because a self-paced model under a budget will always
+# spend it on the surfaces it was told about first.
+SIMULATION_PROMPT = """\
+You are rebuilding a REAL room as an editable Python program, self-paced (no fixed steps), and the
+bar THIS run is a room a person would believe they had walked into — and that a physics engine
+could pick up and simulate without being told anything else.
+
+{rhythm}
+
+The room is `Room.py` in your working directory: a builder + a `SHELL` dict (walls, openings,
+object boxes). FIRST Read `Room.md` and `Room.py` IN FULL to learn the helper API. Then edit
+`Room.py` IN PLACE. LOOK AT THE PHOTOGRAPHS PROPERLY — read the head-on stitches AND a good spread
+of the raw frames, and keep going back to them. Everything below is an observation to be made from
+those images, not a thing to be invented: author what THIS room contains, not what a room like it
+usually contains.
+
+FOUR JOBS, IN THIS ORDER. Do not start one before the previous is done.
+
+1) SHELL STRUCTURE + MATERIALS — the foundation.
+   • Fix clear scan errors in `SHELL` first: a missing or spurious wall, wrong endpoints, a
+     door/window at the wrong offset/width/sill, a wrong floor/ceiling height. Conservative,
+     evidence-based, metric. Do NOT move or resize the furniture object boxes.
+   • Then every surface ({surface_list}) in the order FLOOR -> WALLS -> CEILING: base colour,
+     finish, pattern. Save after each. Use `fetch_material` or the procedural materials for
+     anything patterned; flat colour only for plain paint.
+
+2) LIGHT. A room lit by a default lamp reads as a render of a room no matter how good the
+   materials are, and every material judgement you make afterwards is made under the wrong light.
+   • Put the REAL luminaires in, where the photos show them: ceiling panels, downlights, pendants,
+     desk and floor lamps, under-cabinet strips. Geometry AND an actual Blender light — the fitting
+     you can see, and the light it casts.
+   • Match what the photographs show: colour temperature (warm domestic ~2700-3000K, office
+     fluorescent/LED ~4000-5000K, daylight through a window ~6500K), rough intensity, and the
+     direction the shadows in the photo tell you. If a window is the dominant source, light it as a
+     window — the frames will show you whether it is blown out or soft.
+   • Emissive material on the visible fitting so it reads as ON in a render if the photo shows it on.
+   • `render` after the lighting pass and LOOK at it against the photo. Light is the one thing
+     where your first guess is usually a stop or two out, and it is cheap to correct.
+
+3) FIXTURES the scan missed but the photos show — sockets, switches, trunking, boards, signs,
+   radiators, shelves, skirting, ceiling vents, rugs, blinds/curtains, door furniture. Simple
+   procedural geometry flush to the wall, anchored to the SHELL's opening offsets and wall lengths.
+   Never over a Door/Window opening.
+
+4) THE SMALL OBJECTS. This is the job that decides whether the room is believable, and it is the
+   one you must NOT run out of budget before reaching — start it while you still have room to work.
+   An empty desk is the loudest possible statement that a scene is synthetic. Real rooms are full
+   of small, specific, slightly untidy things, and the photographs are full of them: mugs, glasses,
+   bottles, papers, folders, notebooks, pens and pen pots, books, laptops, monitors, keyboards,
+   mice, cables and chargers, phones, boxes, bins, bags, plants and pots, cushions, throws, remote
+   controls, tissue boxes, jars, bowls, fruit, cleaning bottles, chopping boards, kettles, toasters.
+   • Work SURFACE BY SURFACE. For each placeable surface in the room (the desks, tables, counters,
+     shelves, cabinet tops) find it in the photos and author WHAT IS ACTUALLY ON IT, in roughly the
+     positions the photos show.
+   • Build them as small multi-part procedural geometry — a mug is a cylinder plus a handle, a
+     laptop is a base plus a screen at an angle, a plant is a pot plus foliage. They are small in
+     frame, so simple honest shapes at the right SIZE, COLOUR and POSITION beat detailed shapes at
+     the wrong ones. Metric: a mug is ~8 cm across and ~10 cm tall, an A4 sheet is 210x297 mm, a
+     laptop is ~32 cm wide.
+   • Do not tidy the room. Things sit at angles, papers overlap, cables trail, a chair is pushed
+     out. Alignment to the axes is the giveaway of a generated scene — rotate them.
+   • Do not invent a prop you cannot point at in a photograph. A believable room is a SPECIFIC
+     room; generic clutter is just a different kind of wrong.
+
+SIMULATION READINESS — REQUIRED FOR EVERY OBJECT YOU ADD, NOT AN EXTRA.
+The room has to be something a physics engine can accept, and that needs two things from you:
+• GROUP each object as ONE unit with `group_fixture(name, category, parts, rests_on=..., attached_to=...)`
+  (near the collection helpers in `Room.py`). Collect the parts of ONE object into a list and pass
+  them. Name them like the furniture handles — `Mug0`, `Laptop0`, `Plant0`, `Radiator0`, `Lamp0`
+  (increment per instance). A loose pile of boxes is not an object.
+• STATE WHAT HOLDS IT UP. `rests_on="Table0"` for anything standing on a surface, `rests_on="Floor0"`
+  for anything on the floor, `attached_to="Wall3"` (or `"Ceiling0"`) for anything fixed to the
+  structure. Every single added object gets one or the other — no exceptions, no guesses left
+  implicit. It is written into the object and comes back out in `room_layout.json`, which is what a
+  simulator reads.
+• AND MAKE IT TRUE GEOMETRICALLY. An object that says it rests on `Table0` must actually have its
+  underside ON that table's top surface — not 2 cm above it, not sunk 1 cm into it. Read the
+  table's top from the SHELL / the object's own bbox and place the prop from that number rather
+  than by eye. A prop that floats is a prop that will fall on the first simulated frame, and a prop
+  that intersects is one the engine will fire across the room.
+• Nothing may interpenetrate anything else. Use `check_collisions` to verify, and fix what it
+  reports.
+
+The DECISIVE references are the HEAD-ON STITCHES (each shows one surface square-on). Read every one:
+{stitch_lines}
+The raw frames in {scan} are where the SMALL OBJECTS are legible — the stitches flatten them. Read a
+good spread of frames before job 4, and again while you work through it.
+
+TOOLS — use them, they are not decoration:
+- `fetch_material(query, name, color_hex, pattern_strength)` — real Poly Haven PBR (diffuse +
+  roughness + normal) LAB-recoloured to your measured colour, saved into `materials/` +
+  `textures.json` with a wiring snippet. Prefer it over flat colour for any patterned surface. The
+  code-native alternative for carpet/fabric/plaster/tile/brick/wood:
+  `from litereality_agent.room_ops.procedural_materials import make`.
+- `render(target)` — render `Room.py` for 'room' or a wall, paired with the real photo. READ the
+  returned PNG with your own eyes and correct what is wrong. Render after LIGHT, and again after
+  the props are in.
+- `critic(images, goal)` — a strict second opinion when you want one.
+- `select_views(target)` — best frames for a target.
+- `check_collisions()` — REQUIRED once the props are in. Nothing may interpenetrate.
+
+Constraints:
+- Edit ONLY `Room.py`; it MUST stay valid Python that compiles. You MAY correct SHELL structure
+  (walls, openings, floor/ceiling height) conservatively. Do NOT move or resize the furniture
+  object boxes (Table*/Chair*/reconstructed objects) — those are measured and already corrected.
+- Everything in CODE, so a fresh rebuild reproduces it exactly.
+
+Finish with a summary: the material per surface, the lights (type, colour temperature, where), the
+fixtures, and a list of every small object with what it rests on or is attached to.
+"""
+
+
+PROFILES = {"base": PROMPT, "detail": DETAIL_PROMPT, "simulation": SIMULATION_PROMPT}
 
 
 def room_compiles(room: Path) -> str:
