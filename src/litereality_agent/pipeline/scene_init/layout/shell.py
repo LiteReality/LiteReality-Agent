@@ -42,11 +42,8 @@ from typing import Any
 
 import numpy as np
 
-
 __all__ = [
     "ARKIT_TO_Z_UP",
-    "shell_from_layout",
-    "shell_from_scan",
     "load_shell",
     "save_shell",
     "read_room_py_shell",
@@ -82,7 +79,7 @@ def _box_frame(matrix: np.ndarray, prefer_long: bool) -> tuple[np.ndarray, np.nd
     """
     cols = [matrix[:3, k] for k in range(3)]
     lengths = [float(np.linalg.norm(c)) for c in cols]
-    units = [c / (l if l > 1e-12 else 1.0) for c, l in zip(cols, lengths)]
+    units = [c / (n if n > 1e-12 else 1.0) for c, n in zip(cols, lengths)]
 
     vertical = max(range(3), key=lambda k: abs(units[k][2]))
     horizontal = [k for k in range(3) if k != vertical]
@@ -228,7 +225,7 @@ def shell_summary(shell: dict[str, Any]) -> dict[str, Any]:
     return {
         "walls": len(walls),
         "wall_length_total": _r(sum(lengths.values()), 2),
-        "sliver_walls": sorted(w for w, l in lengths.items() if l < 0.35),
+        "sliver_walls": sorted(w for w, n in lengths.items() if n < 0.35),
         "openings": {k: sum(1 for o in openings.values() if o["type"] == k)
                      for k in ("door", "window", "opening")},
         "objects": len(objects),

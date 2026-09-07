@@ -29,9 +29,9 @@ import sys
 from pathlib import Path
 
 from .adjust import check
+from .graph import wall_distance
 from .repair import _corner_fit, _snap_delta, attachments, score
 from .shell import load_shell, save_shell, wall_frame
-from .graph import wall_distance
 
 
 def _paths(session: Path):

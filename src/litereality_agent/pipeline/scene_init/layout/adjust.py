@@ -55,7 +55,6 @@ import numpy as np
 
 from .graph import (
     CLASH_TOL,
-    is_wall_hung,
     FLOOR_STANDING,
     FURNITURE,
     OPEN_FRAME,
@@ -63,6 +62,7 @@ from .graph import (
     WALL_MOUNTED,
     Z_BAND_TOL,
     expected_pair,
+    is_wall_hung,
     obb_mtv,
     wall_distance,
 )

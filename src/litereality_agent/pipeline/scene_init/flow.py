@@ -28,9 +28,9 @@ import time
 from pathlib import Path
 
 from litereality_agent import console, telemetry
+from litereality_agent.pipeline.scene_init import layout
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest import merge_boxes
-from litereality_agent.pipeline.scene_init import layout
 from litereality_agent.pipeline.scene_init.ingest.crop import crop_objects
 from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
 from litereality_agent.pipeline.scene_init.ingest.extract import extract_scene

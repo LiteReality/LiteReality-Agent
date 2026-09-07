@@ -160,8 +160,9 @@ def _reflush(shell: dict[str, Any], object_id: str, prefer: str | None = None) -
     the room says it is and its back face belongs on the wall, so the model is asked only for the
     size and the geometry decides the placement that follows from it.
     """
-    from .repair import _flush_to, attachments as _attachments
     from .adjust import _floor_bounds, _floor_triangles
+    from .repair import _flush_to
+    from .repair import attachments as _attachments
 
     obj = shell["objects"][object_id]
     walls = shell.get("walls") or {}

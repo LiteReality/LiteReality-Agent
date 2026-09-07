@@ -22,13 +22,12 @@ geometry is preferred; otherwise the raw scene_data is converted in-memory.
 """
 from __future__ import annotations
 
+import logging
 import math
 import os
 import pickle
 
 import numpy as np
-
-import logging
 
 log = logging.getLogger(__name__)
 

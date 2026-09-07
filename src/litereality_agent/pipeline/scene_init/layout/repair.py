@@ -46,9 +46,19 @@ from typing import Any, Callable
 import numpy as np
 
 from . import adjust
-from .adjust import (ANCHOR_TOL, FLOOR_OUT_TOL, SEPARATION, Move, check,
-                     _floor_triangles, _inside_floor, _obb,
-                     _support, ground, reseat_openings)
+from .adjust import (
+    ANCHOR_TOL,
+    FLOOR_OUT_TOL,
+    SEPARATION,
+    Move,
+    _floor_triangles,
+    _inside_floor,
+    _obb,
+    _support,
+    check,
+    ground,
+    reseat_openings,
+)
 from .graph import build_graph, in_category, obb_mtv, wall_distance
 from .shell import object_footprint, wall_frame
 
@@ -674,8 +684,9 @@ def solve_v12(shell: dict[str, Any], *, detail: bool = False):
     the photo — is the only thing left that geometry does not have. Its answer goes through the
     same gate as everything else: applied to a copy, kept only if the room improves.
     """
-    from .agent import apply_proposals, propose
     from pathlib import Path
+
+    from .agent import apply_proposals, propose
 
     root = Path((shell.get("meta") or {}).get("batch_dir") or ".")
 
