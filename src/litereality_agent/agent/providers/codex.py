@@ -58,6 +58,13 @@ from litereality_agent.agent.providers.base import (
 _EDIT_TOOL = "Edit"
 _SHELL_TOOL = "Bash"
 
+# One `codex exec --json` event is one line, and an event carries whole command output — a
+# `cat Room.py` or a stitch listing runs to hundreds of KB. asyncio's StreamReader defaults to a
+# 64 KiB line cap and raises `ValueError: Separator is found, but chunk is longer than limit` on
+# the first line over it, which killed the session a couple of tool calls in and reported success.
+# The cap has to clear the largest event a session can emit, not the typical one.
+_EVENT_LINE_LIMIT = 64 * 1024 * 1024
+
 
 def _toml(value) -> str:
     """A TOML scalar/array literal for `codex -c key=<value>`. JSON is valid TOML for these."""
@@ -275,6 +282,7 @@ class CodexHarness:
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=_EVENT_LINE_LIMIT,
         )
 
         counter: dict = {}
