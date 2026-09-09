@@ -9,7 +9,7 @@ Every update should tie to exactly one module. If a change has no obvious home h
 wrong and should be fixed first.
 
 ```text
-LiteReality
+LiteReality-Agent
 │
 ├── 0. Scene understanding
 │      └── layout and oriented 3D object boxes — currently straight from Apple RoomPlan
@@ -20,7 +20,7 @@ LiteReality
 ├── 2. Layout agent
 │      ├── merge objects that are built into each other, e.g. an oven that is built
 │      │   within a cabinet, two object will be merge into one
-│      └── make the layout simulation-ready with the multi-stage layout agent (src/litereality_agent/pipeline/scene_init/layout)
+│      └── make the layout simulation-ready with the multi-stage layout agent
 │
 ├── 3. Grouping
 │      └── identical objects in the scene — mostly chairs for now
