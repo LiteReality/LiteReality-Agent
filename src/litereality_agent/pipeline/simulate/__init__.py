@@ -112,6 +112,17 @@ def run(context: RunContext, options: dict) -> StageResult:
         if names:
             warnings.append(f"{len(names)} object(s) with {note}: {', '.join(map(str, names[:6]))}")
 
+    # A SCENE THAT STARTS INTERPENETRATING IS NOT SIM-READY, HOWEVER WELL IT EXPORTED. Overlap at
+    # t=0 is stored energy the solver has to discharge, so the first thing an episode does is throw
+    # furniture. This is the one check that speaks for the whole file rather than for one object.
+    if report.get("loads_clean") is False:
+        worst = report.get("initial_overlaps") or []
+        detail = "; ".join(f"{o['bodies']} {o['mm']}mm" for o in worst[:3])
+        warnings.append(f"scene starts interpenetrating in {len(worst)} place(s): {detail}")
+    elif report.get("loads_clean") is None and report.get("load_check_error"):
+        warnings.append(f"could not load the exported scene to check it: "
+                        f"{report['load_check_error']}")
+
     # THE HEADLINE NUMBER, SAID WHETHER OR NOT ANYTHING FAILED. Every warning above fires on a
     # named object going wrong; none of them fires on the ordinary case of an authored room whose
     # fixtures never had a package to begin with, and that case is the majority of the colliders.

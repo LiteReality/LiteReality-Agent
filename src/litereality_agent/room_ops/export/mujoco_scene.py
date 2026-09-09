@@ -108,6 +108,22 @@ SCENERY = {"table", "desk", "worktop", "countertop", "counter", "bench", "storag
 # a wall-mounted shelf that happens to be named one, and that is a different thing.
 SCENERY_FLOOR_GAP = 0.08
 
+# TRIM IS PART OF THE BUILDING, NOT AN OBJECT IN IT. Skirting, trunking and coving are nailed to
+# the fabric and run the length of a room, geometrically INSIDE the walls they trim. They can never
+# be free bodies, and unlike SCENERY that is true at any height — trunking sits at 0.95 m.
+#
+# This is a set rather than an inference because the inference cannot reach them. `hung` is only
+# consulted when an object has neither `attached_to` nor `rests_on`, so a single authored
+# `rests_on: Floor0` is enough to make one free with no further test — and skirting genuinely does
+# sit on the floor, so the claim is not even wrong. Office-Elliott authored under a short step
+# budget produced exactly that: `Skirting0`, 86 kg of trim ringing the room, emitted as a free body
+# 40 mm inside the door lining. MuJoCo read the overlap as stored energy and threw it 158 mm, and
+# the scene failed the stability gate on that one body alone. The fully authored room escaped it
+# only because the author got far enough to write `attached_to: Room_Shell` — which is to say the
+# room was one interrupted session away from being unusable, with nothing to warn anyone.
+TRIM = {"skirting", "baseboard", "trunking", "coving", "cornice", "architrave", "dado",
+        "beading", "moulding", "molding", "threshold", "picture_rail", "chair_rail"}
+
 # Materials whose NAME says they are see-through. glTF carries the pane as an ordinary opaque
 # texture — Blender's transmission does not survive the export — so a window arrives as a solid
 # painted panel and the room has no daylight in it. The name is the only surviving evidence that
@@ -1180,8 +1196,13 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
                    < SCENERY_FLOOR_GAP)
         if scenery:
             stats.setdefault("scenery", []).append(handle)
+        # Trim is static whatever the layout says about it — including an authored `rests_on`,
+        # which is the one claim that otherwise skips every other test above.
+        trim = not hanging and _in_category(category, TRIM)
+        if trim and not (rec.get("attached_to") or hung):
+            stats.setdefault("trim_pinned", []).append(handle)
         static = (not hanging and (bool(rec.get("attached_to")) or bool(hung)
-                                   or category in OPENING or bool(moving) or scenery))
+                                   or category in OPENING or bool(moving) or scenery or trim))
         body_attrs = {"name": handle, "pos": " ".join(f"{v:.4f}" for v in centre)}
         # A free object hangs off the world; anything fixed to the structure hangs off the ROOM, so
         # it travels with the walls when they move instead of being left behind in mid-air.
@@ -1652,6 +1673,34 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
     # report counts what was emitted; this one is the only one that says how much of it was
     # invented here. It has to be computed rather than inferred by a reader subtracting two fields,
     # because the honest answer on an authored room is well under half and nothing else says so.
+    # DOES THE SCENE WE JUST WROTE ACTUALLY LOAD CLEAN? Everything above reasons about the room
+    # from the layout; this is the only step that asks MuJoCo. A body emitted free that starts
+    # inside the structure is stored energy — the solver reads the overlap as a compressed spring
+    # and ejects it — and until now the first thing to notice was the stability gate, long after
+    # the export had reported success. Compiling the file here costs about a second and turns that
+    # into a number in the report. Deliberately non-fatal and best-effort: a scene that cannot be
+    # loaded here is still written out, because a file you can inspect beats no file at all.
+    try:
+        import mujoco  # noqa: PLC0415  — optional, and only at load-check time
+
+        _m = mujoco.MjModel.from_xml_path(str(xml))
+        _d = mujoco.MjData(_m)
+        mujoco.mj_forward(_m, _d)
+        _bn = lambda g: mujoco.mj_id2name(                # noqa: E731
+            _m, mujoco.mjtObj.mjOBJ_BODY, _m.geom_bodyid[g]) or "?"
+        overlaps = {}
+        for _c in range(_d.ncon):
+            con = _d.contact[_c]
+            if con.dist < -0.005:
+                pair = " <-> ".join(sorted((_bn(con.geom1), _bn(con.geom2))))
+                overlaps[pair] = min(overlaps.get(pair, 0.0), float(con.dist))
+        stats["loads_clean"] = not overlaps
+        stats["initial_overlaps"] = [{"bodies": k, "mm": round(v * 1000, 1)}
+                                     for k, v in sorted(overlaps.items(), key=lambda kv: kv[1])]
+    except Exception as exc:                              # noqa: BLE001 — a check is not the export
+        stats["loads_clean"] = None
+        stats["load_check_error"] = f"{type(exc).__name__}: {exc}"
+
     derived = int(stats["colliders"]) - int(stats.get("sidecar_colliders", 0))
     stats["derived_colliders"] = max(0, derived)
     stats["sidecar_coverage"] = (round(stats.get("sidecar_colliders", 0) / stats["colliders"], 3)
