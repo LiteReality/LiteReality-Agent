@@ -124,6 +124,37 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--quality-pass", action="store_true")
 
 
+def _simulate_options(args) -> dict:
+    return {
+        "shake": getattr(args, "shake", False),
+        "from_seed": getattr(args, "from_seed", False),
+        "reuse_meshes": getattr(args, "reuse_meshes", False),
+        "no_decompose": getattr(args, "no_decompose", False),
+    }
+
+
+def _add_simulate_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--shake", action="store_true",
+        help="after exporting, step the scene under a rising ground acceleration and report what "
+             "moved — the measurement that says whether the room's supports are true",
+    )
+    parser.add_argument(
+        "--reuse-meshes", action="store_true",
+        help="keep the collider meshes already exported and only rewrite scene.xml",
+    )
+    parser.add_argument(
+        "--from-seed", action="store_true",
+        help="export the room straight out of scene_init instead of the authored one — the shell "
+             "plus the reconstructed objects, with no materials, fixtures or props",
+    )
+    parser.add_argument(
+        "--no-decompose", action="store_true",
+        help="skip convex decomposition for objects with no compiled physics — faster, but a "
+             "concave body then collides as its hull (a table becomes a solid block)",
+    )
+
+
 def _add_publish_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--compare-frames", type=int, default=None,
@@ -217,7 +248,8 @@ def _run(args) -> int:
             through=args.through,
             force=set(args.force or ()),
             strict=args.strict,
-            options={"author": _author_options(args), "publish": _publish_options(args)},
+            options={"author": _author_options(args), "publish": _publish_options(args),
+                     "simulate": _simulate_options(args)},
         )
         rc = _print_results(results)
         finished("run finished" if not rc else "run failed")
@@ -238,6 +270,7 @@ def _stage(args) -> int:
                 "skip_image_generation": args.skip_image_generation,
                 **_author_options(args),
                 **_publish_options(args),
+                **_simulate_options(args),
             },
         )
         rc = _print_results([result])
@@ -323,6 +356,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_author_options(run)
     _add_live_options(run)
     _add_publish_options(run)
+    _add_simulate_options(run)
     run.set_defaults(handler=_run)
 
     stage = commands.add_parser("stage", help="run exactly one pipeline stage")
@@ -335,6 +369,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_author_options(stage)
     _add_live_options(stage)
     _add_publish_options(stage)
+    _add_simulate_options(stage)
     stage.set_defaults(handler=_stage)
 
     view = commands.add_parser("view", help="walk a published room in the browser")

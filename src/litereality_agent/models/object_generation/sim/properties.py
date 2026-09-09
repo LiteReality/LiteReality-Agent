@@ -304,6 +304,7 @@ def _part_budget(mass: float) -> int:
 
 
 def _colliders(mesh, name: str, out_dir: Path, mass: float, decompose: bool):
+    """`name` must be unique across every object that shares `out_dir` — see `build_model`."""
     import trimesh
 
     written = []
@@ -432,9 +433,17 @@ def build_model(glb: Path, out_dir: Path, *, category: str = "", decompose: bool
         mass = max(float(mass), MIN_LINK_MASS)
 
         inertia, com, isource = _inertia_from_geometry(local, mass)
-        visual = out_dir / f"{link}_vis.obj"
+        # NAMED FOR THE OBJECT, NOT JUST THE LINK. A recipe-built object gets its own directory, but
+        # a generative one is a bare glb at the top of `reconstruct/` and `sim/` is then SHARED by
+        # every chair in the room. Both chairs have a `base_link`, so `base_link_col0.obj` was
+        # written twice and the second one won: `ChairCluster0.physics.json` recorded eight
+        # colliders whose volumes were its own and whose files held ChairCluster1's geometry. There
+        # is nothing to see in the report — both objects pass their own gate — and the room gets one
+        # chair collided as another.
+        stem = f"{name}_{link}"
+        visual = out_dir / f"{stem}_vis.obj"
         local.export(visual)
-        colliders = _colliders(local, link, out_dir, mass, decompose)
+        colliders = _colliders(local, stem, out_dir, mass, decompose)
 
         links.append(Link(
             name=link, mass=round(mass, 4), com=[round(float(v), 6) for v in com],

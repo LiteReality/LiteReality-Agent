@@ -92,6 +92,42 @@ than relying on whatever textures and orientation the mesh arrived with.
 """
 
 
+def copy_sim_sidecar(src_dir: Path, dest: Path, name: str) -> int:
+    """Carry one object's compiled physics into the Room package. Returns the files copied.
+
+    `object_generation.sim` leaves a `sim/` directory beside each generated glb holding the object's
+    own mass, inertia, friction, joints and CONVEX COLLIDERS — the statement of what it is
+    physically, already gated by a solver. Without it in here, a Room directory describes how the
+    room LOOKS and nothing about how it behaves, and the MuJoCo export has to re-derive every
+    number from a category table at the last moment.
+
+    Copied FILE BY FILE from the model rather than as a whole directory, because a generative
+    object (a TRELLIS chair) is a bare glb at the top of `reconstruct/` and shares one `sim/` with
+    every other one: copying the directory would put all six chairs' colliders into each chair.
+    """
+    physics = src_dir / f"{name}.physics.json"
+    if not physics.is_file():
+        return 0
+    try:
+        model = json.loads(physics.read_text(encoding="utf-8"))
+    except Exception as exc:                                  # noqa: BLE001 — never fail an export
+        print(f"  ! {name}: unreadable physics sidecar ({exc})")
+        return 0
+    wanted = {physics.name, f"{name}.urdf", f"{name}.sim_check.json"}
+    for link in model.get("links") or []:
+        wanted.update(c["file"] for c in (link.get("colliders") or []))
+        if link.get("visual"):
+            wanted.add(link["visual"])
+    dest.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for filename in sorted(wanted):
+        source = src_dir / filename
+        if source.is_file():
+            shutil.copy2(source, dest / filename)
+            copied += 1
+    return copied
+
+
 def reset_dir(d: Path):
     if d.exists():
         shutil.rmtree(d)
@@ -375,6 +411,8 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
                     for bf in bundled:
                         shutil.copy2(tex / bf, d / "textures" / bf)
                     summary["bundled"] = summary.get("bundled", 0) + len(bundled)
+            summary["sim"] = summary.get("sim", 0) + bool(
+                copy_sim_sidecar(src / "sim", d / "sim", name))
             summary["procedural"] += 1
         else:  # static: the glb is the source; generate the uniform object.py / object.md
             d = static_root / name
@@ -397,6 +435,8 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
             (d / "object.md").write_text(
                 STATIC_OBJECT_MD.replace("__NAME__", name).replace("__CAT__", cat), encoding="utf-8"
             )
+            summary["sim"] = summary.get("sim", 0) + bool(
+                copy_sim_sidecar(glb_src.parent / "sim", d / "sim", name))
             summary["static"] += 1
 
     # 4. Notes for the room
@@ -407,6 +447,8 @@ def export(scan: str, out_root: Path | None = None) -> Path | None:
         f"  Procedural: {summary['procedural']}  (object.py + textures.json recipe; no glb, no texture files)"
     )
     print(f"  Static:     {summary['static']}  (glb + the uniform object.py)")
+    print(f"  Physics:    {summary.get('sim', 0)} objects carry a compiled sim/ sidecar "
+          f"(mass, inertia, friction, joints, convex colliders)")
     print(
         f"  Texture recipes: {summary.get('recipe_imgs', 0)} rebuildable"
         + (f", {summary['bundled']} stored as files" if summary.get("bundled") else ", 0 stored as files")
