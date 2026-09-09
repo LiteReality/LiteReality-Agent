@@ -46,3 +46,6 @@ __MACOSX
 
 # example scans — cloned separately (github.com/LiteReality/example-scans)
 /example-scans/
+
+# the standalone layout prototype: its arena, viewers and benchmark artifacts
+physical_engine/out/

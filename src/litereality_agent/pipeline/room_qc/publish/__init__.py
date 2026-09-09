@@ -1,5 +1,10 @@
 """Compile and publish the final room, plus the review artifacts that go with it.
 
+Lives under `room_qc`, not `realism_authoring`, because publishing is not authoring: by the time
+this runs the room is finished being built. What it actually does is gate the room (collision
+correction, then the quality report) and then produce the things a human looks at to judge it.
+Running last in the flow is not the same as belonging to the flow that precedes it.
+
 Everything publishable lands in `room_preview/` next to the build it describes. `room/` stays the
 one editable source; the preview tree is the one place to LOOK. Publishing used to also copy
 `Room.py` and `Room.glb` up to the authoring root, which left the same room in three places with

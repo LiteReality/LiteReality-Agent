@@ -1,6 +1,7 @@
 """The supported pipeline, in execution order."""
 
-from litereality_agent.pipeline.realism_authoring import author, publish
+from litereality_agent.pipeline.realism_authoring import author
+from litereality_agent.pipeline.room_qc import publish
 from litereality_agent.pipeline.scene_init import ingest, reconstruct, seed
 from litereality_agent.pipeline.stage import Stage
 

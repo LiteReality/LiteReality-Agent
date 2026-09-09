@@ -25,6 +25,9 @@ The merge writes two things besides the rewritten pkl:
     down to the sub-part its detector recognises (the sink).
 
 Set ``LR_BOX_MERGE=0`` to disable, or ``LR_BOX_MERGE_THRESH`` to change the overlap ratio.
+``LR_BOX_MERGE_WALL_GUARD=0`` turns off the wall gate (see `_separated_by_wall`), which is on by
+default and can only ever REMOVE a merge — with it off, and with no walls on disk, this module
+behaves exactly as it did before that gate existed.
 """
 
 from __future__ import annotations
@@ -49,6 +52,13 @@ YAW_TOLERANCE_DEG = 3.0  # boxes must share a yaw to be part of one run
 # to overlap — allowing a small gap so a sink resting on the counter still fuses with its cabinet,
 # while an upper cabinet a real gap above the base does NOT. Override with $LR_BOX_MERGE_VGAP.
 DEFAULT_VGAP = 0.12  # m: max vertical gap between extents still treated as overlapping (touching)
+# Wall gate: two boxes with a WALL BETWEEN THEM are not one counter run, whatever their footprints
+# do. RoomPlan sometimes detects a unit twice and records the second copy far too deep — deep
+# enough to punch through the wall behind it — and that smeared copy then overlaps a genuine unit
+# in the NEXT room. Union-find welds the two runs into a single box spanning the wall, and every
+# later stage reads the result as one counter recorded too deep. Set $LR_BOX_MERGE_WALL_GUARD=0
+# to disable. See `_separated_by_wall`.
+WALL_GUARD_EPS = 1e-6  # keeps a shared endpoint from reading as a crossing
 
 
 def _union_obb(members: list[dict]) -> dict:
@@ -137,8 +147,67 @@ def _vertical_gap(a: dict, b: dict) -> float:
     return max(abot, bbot) - min(atop, btop)  # >0 only when there is a gap between the extents
 
 
+def wall_segments(scene_data_dir: str | Path) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """This scan's wall centrelines as 2-D segments in the ARKit ground plane (x, z).
+
+    The centrelines come from :mod:`..layout.adapter`, which recovers each wall from its transform
+    MATRIX rather than its Euler angle — ``R = Ry(theta) . Rz(180)`` does not decompose the obvious
+    way, and doing it by hand tilts every wall a few degrees. That module works in the SHELL frame
+    (Z up, floor on XY) where ``(x, y, z)_ARKit -> (x, -z, y)_SHELL``, so coming back to the ground
+    plane this file works in is ``(x, z)_ARKit = (X, -Y)_SHELL``.
+
+    Returns an empty list rather than raising. No walls simply means no wall guard: the merge then
+    behaves exactly as it did before this function existed, which is the right way to fail for a
+    check that only ever REMOVES merges.
+    """
+    try:
+        from ..layout import adapter
+
+        shell = adapter.shell_from_scene_data(Path(scene_data_dir))
+        return [((float(w["start"][0]), -float(w["start"][1])),
+                 (float(w["end"][0]), -float(w["end"][1])))
+                for w in (shell.get("walls") or {}).values()]
+    except Exception as exc:  # noqa: BLE001 — a missing or unreadable room is not a merge failure
+        print(f"  [box-merge] no walls available for the wall guard ({type(exc).__name__}: {exc})",
+              flush=True)
+        return []
+
+
+def _separated_by_wall(a: dict, b: dict, walls: list) -> bool:
+    """Is there a wall standing between these two boxes?
+
+    Deliberately the crude, physical test: draw the straight line between the two centres and ask
+    whether it crosses a wall SEGMENT. Not "which side of the wall's infinite line" — a room is
+    full of walls whose infinite lines cut everything in half, and the question here is only ever
+    about the wall actually standing in the way.
+
+    This is what Kitchen-Xiaoyang_Lyu needed. One oven was detected twice and the second copy came
+    back 1.46 m deep, straight through the wall behind it. That copy genuinely overlaps the counter
+    run on one side AND a storage unit on the other, so it bridges them, and the merged box —
+    2.53 x 1.62 m in the shipped run — spans a wall. No later stage can undo that: the layout pass
+    reads it as a counter recorded too deep and every repair it can make is the wrong one.
+    """
+    if not walls:
+        return False
+    ax, az = float(a["position"][0]), float(a["position"][2])
+    bx, bz = float(b["position"][0]), float(b["position"][2])
+    dx, dz = bx - ax, bz - az
+    for (sx, sz), (ex, ez) in walls:
+        wx, wz = ex - sx, ez - sz
+        denominator = dx * wz - dz * wx
+        if abs(denominator) < 1e-12:  # parallel: the wall lies beside them, not between them
+            continue
+        ox, oz = sx - ax, sz - az
+        t = (ox * wz - oz * wx) / denominator
+        u = (ox * dz - oz * dx) / denominator
+        if WALL_GUARD_EPS < t < 1.0 - WALL_GUARD_EPS and WALL_GUARD_EPS < u < 1.0 - WALL_GUARD_EPS:
+            return True
+    return False
+
+
 def auto_groups(
-    objs: list[dict], thresh: float = DEFAULT_THRESH, vgap: float = DEFAULT_VGAP
+    objs: list[dict], thresh: float = DEFAULT_THRESH, vgap: float = DEFAULT_VGAP,
+    walls: list | None = None
 ) -> list[list[str]]:
     """Cluster counter-run boxes that genuinely overlap in 3D (same yaw, footprints, heights).
 
@@ -147,6 +216,11 @@ def auto_groups(
     so a real chain — sink over the base cabinet, base cabinet abutting the next base cabinet —
     still merges; the vertical gate is what stops a wall/upper cabinet, whose footprint overlaps but
     which floats a real gap above, from being dragged in through a box between them.
+
+    `walls`, when given, adds the horizontal twin of that gate: a pair with a wall BETWEEN them
+    never fuses, however well their boxes overlap. The vertical gate cannot express this — the
+    bridging box overlaps its neighbour on each side perfectly plausibly, and the resulting group
+    is no taller than a single cabinet. Omit `walls` and the behaviour is exactly as before.
     """
     ids = [
         o["object_type"]
@@ -166,6 +240,8 @@ def auto_groups(
         for j in range(i + 1, len(ids)):
             a, b = by[ids[i]], by[ids[j]]
             if _footprint_overlap(a, b) > thresh and _vertical_gap(a, b) <= vgap:
+                if _separated_by_wall(a, b, walls or []):
+                    continue
                 parent[find(ids[i])] = find(ids[j])
     groups: dict = {}
     for i in ids:
@@ -221,6 +297,11 @@ def apply_merges(
         entry = _union_obb([by[m] for m in present])
         entry["object_type"] = name
         entry["mesh_id"] = name
+        # Provenance travels WITH the box. `members.json` beside the references records the same
+        # thing, but a later stage holding only objects.pkl cannot reach it, and the layout pass
+        # that runs next needs to know this unit was assembled rather than detected — otherwise it
+        # reads a run swallowing its own cabinet as a duplicate and deletes the run.
+        entry["merged_from"] = list(present)
         new_entries.append(entry)
         consumed.update(present)
         merged[name] = present
@@ -260,6 +341,7 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
         vgap = float(os.environ.get("LR_BOX_MERGE_VGAP", DEFAULT_VGAP))
     except ValueError:
         vgap = DEFAULT_VGAP
+    guard = os.environ.get("LR_BOX_MERGE_WALL_GUARD", "1") not in ("0", "false", "no")
 
     try:
         pkl = config.scene_data_dir(scan) / "objects.pkl"
@@ -267,7 +349,13 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
             print(f"  [box-merge] no objects.pkl at {pkl} — skipping", flush=True)
             return {"merged": {}, "skipped": {}}
         objs = pickle.load(open(pkl, "rb"))
-        detected = auto_groups(objs, thresh, vgap)
+        # Walls are read from the same scene_data folder the objects came from, so this needs no
+        # new plumbing and no ordering change: `walls.pkl` is written by extraction, before the
+        # window this function runs in.
+        walls = wall_segments(pkl.parent) if guard else []
+        if guard and not walls:
+            print("  [box-merge] wall guard inactive — no wall centrelines for this scan", flush=True)
+        detected = auto_groups(objs, thresh, vgap, walls)
         if not detected:
             print(f"  [box-merge] no overlapping counter runs (thresh={thresh})", flush=True)
             return {"merged": {}, "skipped": {}}

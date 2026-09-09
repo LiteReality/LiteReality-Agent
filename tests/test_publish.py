@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.realism_authoring import publish
 from litereality_agent.pipeline.result import StageStatus
+from litereality_agent.pipeline.room_qc import publish
 
 
 @pytest.fixture

@@ -7,10 +7,10 @@ with the [LiteReality Scanner](https://apps.apple.com/gb/app/litereality/id67741
 turns it into a complete, graphics-ready scene with articulated assets.
 
 <p>
-  <a href="https://litereality.github.io/Litereality-agent-site/" alt="Website">
+  <a href="https://litereality.github.io/agent/" alt="Website">
     <img src="https://img.shields.io/badge/Website-litereality.github.io-D58236">
   </a>
-  <a href="https://litereality.github.io/Litereality-agent-site/litereality-agent-post/" alt="Blog">
+  <a href="https://litereality.github.io/agent/litereality-agent-post/" alt="Blog">
     <img src="https://img.shields.io/badge/Blog-read%20the%20post-363634">
   </a>
   <a href="https://apps.apple.com/gb/app/litereality/id6774158260" alt="LiteReality Scanner">
@@ -20,7 +20,7 @@ turns it into a complete, graphics-ready scene with articulated assets.
 </p>
 
 <p align="center">
-  <img src="assets/demo.jpg" width="100%"
+  <img src="assets/demo.jpg" width="80%"
        alt="RGBD scan on the left, agentic reconstruction on the right">
 </p>
 

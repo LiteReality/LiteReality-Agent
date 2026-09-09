@@ -257,7 +257,7 @@ def _live(args) -> int:
 def _view(args) -> int:
     """Walk a published room. `publish` knows which file it wrote; `room_ops.walk` serves any glb —
     resolving one run's tree to the other's argument is this layer's whole job."""
-    from litereality_agent.pipeline.realism_authoring import publish
+    from litereality_agent.pipeline.room_qc import publish
     from litereality_agent.room_ops import walk
 
     context = _context(args)
