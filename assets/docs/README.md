@@ -1,4 +1,4 @@
-Figures used by the pages under `doc/`.
+Figures used by the pages under `docs/`.
 
 `tool-*.png` are the tool figures from the [project blog
 post](https://litereality.github.io/agent/litereality-agent-post/).

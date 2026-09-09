@@ -151,7 +151,7 @@ uv run litereality stage simulate run/<scan>            # -> realism_authoring/m
 uv run litereality stage simulate run/<scan> --shake     # ...and measure what actually moves
 ```
 
-[`doc/Sim-Ready-intergration/Mujoco.md`](doc/Sim-Ready-intergration/Mujoco.md) covers where each
+[`docs/integration/mujoco.md`](docs/integration/mujoco.md) covers where each
 number comes from and what happens to an object that has no compiled physics.
 
 ## See the results

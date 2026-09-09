@@ -12,7 +12,7 @@ plaster grain — should be a fetched texture. A plain painted wall can stay a f
 roughness.
 
 <p align="center">
-  <img src="../../assets/doc/tool-fetch-material.png" width="100%"
+  <img src="../../assets/docs/tool-fetch-material.png" width="100%"
        alt="fetch_material: search Poly Haven, rank candidates, download the three maps, tint to the measured colour">
 </p>
 

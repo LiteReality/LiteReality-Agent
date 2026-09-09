@@ -60,7 +60,7 @@ Room/
 
 The `sim/` sidecar is what makes a Room package a complete statement of the room including how it
 behaves. `export/mujoco_scene.py` reads it rather than re-deriving mass, friction, colliders and
-hinge pivots at export time — see [`doc/Sim-Ready-intergration/Mujoco.md`](../../../doc/Sim-Ready-intergration/Mujoco.md).
+hinge pivots at export time — see [`docs/integration/mujoco.md`](../../../docs/integration/mujoco.md).
 
 Compilation produces regenerable output separately:
 

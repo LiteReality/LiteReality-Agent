@@ -10,9 +10,9 @@ than per scene. Neither route is better; they fail at opposite things.
   describe with primitives. Gives back a mesh nobody can edit, at whatever dimensions it felt like.
 
 <p align="center">
-  <img src="../../assets/doc/route-procedural.png" width="100%"
+  <img src="../../assets/docs/route-procedural.png" width="100%"
        alt="Sink_Storage0: scan frames, clean reference, and a procedural reconstruction with its doors open">
-  <img src="../../assets/doc/route-trellis.png" width="100%"
+  <img src="../../assets/docs/route-trellis.png" width="100%"
        alt="Sofa0: scan frames, clean reference, and a TRELLIS image-to-3D mesh">
 </p>
 

@@ -15,9 +15,9 @@ Three target layers, because an aimless render of everything shows nothing:
 
 <table>
 <tr>
-<td width="33%"><img src="../../assets/doc/tool-compare-scene.png" alt="render | photo of the whole room, every object chip-labelled"></td>
-<td width="33%"><img src="../../assets/doc/tool-compare-wall.png" alt="render | photo with only Wall1 outlined"></td>
-<td width="33%"><img src="../../assets/doc/tool-compare-object.png" alt="render | photo with one table boxed"></td>
+<td width="33%"><img src="../../assets/docs/tool-compare-scene.png" alt="render | photo of the whole room, every object chip-labelled"></td>
+<td width="33%"><img src="../../assets/docs/tool-compare-wall.png" alt="render | photo with only Wall1 outlined"></td>
+<td width="33%"><img src="../../assets/docs/tool-compare-object.png" alt="render | photo with one table boxed"></td>
 </tr>
 <tr>
 <td><code>target="room"</code></td>

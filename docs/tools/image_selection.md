@@ -8,7 +8,7 @@ near-duplicates of their neighbours, many of them not seeing the thing being ask
 that consumes frames after it, goes through it.
 
 <p align="center">
-  <img src="../../assets/doc/tool-select-view.png" width="100%"
+  <img src="../../assets/docs/tool-select-view.png" width="100%"
        alt="select_views: camera frusta on the floor plan for a whole room, one wall, and one object">
 </p>
 
