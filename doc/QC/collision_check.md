@@ -1,7 +1,6 @@
-# Collision check
+# Rules
 
-Once a `Room.py` reconstruction is finished — we have the layout, the furniture and the wall-hung
-objects — the collision check makes sure nothing collides with anything else.
+Once a `Room.py` reconstruction is finished, the collision check makes sure nothing collides with anything else.
 
 We have the following entities:
 
@@ -11,19 +10,22 @@ We have the following entities:
 3. **Detected furniture.** Each one is its own collision body. 
 4. **Objects the agent adds** that weren't detected. Also their own individual bodies.
 
-Rules:
-
 - Everything is inside the room. Nothing sticks out.
 - Objects don't clash with each other.
 - Objects don't clash with walls.
+
+
+
+In the layout stage we already use layout agent to make the layout simulation-ready. the new intorucing of the the collison are mostly from
+
+1. chair and table as they are allow to calssh at bbox level.
+2. newly authored objects that is not part of the raw detections. 
+
 
 Small items the agent puts on tables and shelves are out of scope for now — but they must sit
 attached to the table, not embedded into it.
 
 # The deterministic function
-
-We define one function that takes the `Room.glb` built from `Room.py` and answers whether the room
-is physically possible. No model is involved. It reads; it never edits a room.
 
 ```python
 check_glb("…/room_preview/Room.glb")   ->  [findings]
