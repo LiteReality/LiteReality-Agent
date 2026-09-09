@@ -35,7 +35,8 @@ room_ops/
 ├── surfaces.py            Room.py surface discovery
 ├── procedural_materials.py
 ├── viewer.py              self-contained Three.js HTML export
-├── export/                capture/reconstructed assets → editable Room.py
+├── export/                capture/reconstructed assets → editable Room.py,
+│                          and the authored room → MuJoCo (`mujoco_scene`, `mujoco_shake`)
 ├── compile/               Room.py → Room.glb/Room.blend
 └── rendering/             render and reference-view utilities
 ```
@@ -51,8 +52,15 @@ Room/
 ├── manifest.json          object-to-RoomPlan mapping
 └── Objects/
     ├── Procedural/<name>/  object.py, object.md, textures.json
+    │   └── sim/            the object's own physics: mass, inertia, friction,
+    │                       joints and convex colliders (+ URDF)
     └── Static/<name>/      source GLB plus a uniform object.py wrapper
+        └── sim/            the same, for a generated mesh
 ```
+
+The `sim/` sidecar is what makes a Room package a complete statement of the room including how it
+behaves. `export/mujoco_scene.py` reads it rather than re-deriving mass, friction, colliders and
+hinge pivots at export time — see [`doc/Sim-Ready-intergration/Mujoco.md`](../../../doc/Sim-Ready-intergration/Mujoco.md).
 
 Compilation produces regenerable output separately:
 
