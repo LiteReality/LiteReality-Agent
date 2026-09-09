@@ -43,3 +43,6 @@ __MACOSX
 
 # macOS finder junk
 .DS_Store
+
+# example scans — cloned separately (github.com/LiteReality/example-scans)
+/example-scans/
