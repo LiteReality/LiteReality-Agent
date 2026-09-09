@@ -28,7 +28,7 @@ turns it into a complete, graphics-ready scene with articulated assets.
 
 - **2026-09-09 — Procedural reconstruction with sim-ready physics.** Articulated objects now carry
   their own mass, inertia, colliders and joints, following
-  [Articraft](https://arxiv.org/abs/2605.15187), and export to URDF and MJCF.
+  [Articraft](https://github.com/articraftresearch/Articraft), and export to URDF and MJCF.
 - **2026-09-07 — Layout agents.** The noisy layout of a raw scan is settled into a collision-free,
   simulation-ready layout before anything is built from it.
 - **2026-08-01 — LiteReality-Agent 0.0.** Turn your room scans from the LiteReality Scanner app
