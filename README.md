@@ -24,6 +24,16 @@ turns it into a complete, graphics-ready scene with articulated assets.
        alt="RGBD scan on the left, agentic reconstruction on the right">
 </p>
 
+## News
+
+- **2026-09-09 — Procedural reconstruction with sim-ready physics.** Articulated objects now carry
+  their own mass, inertia, colliders and joints, following
+  [Articraft](https://arxiv.org/abs/2605.15187), and export to URDF and MJCF.
+- **2026-09-07 — Layout agents.** The noisy layout of a raw scan is settled into a collision-free,
+  simulation-ready layout before anything is built from it.
+- **2026-08-01 — LiteReality-Agent 0.0.** Turn your room scans from the LiteReality Scanner app
+  into interactive, realistic 3D.
+
 ## How to use
 
 1. **Get the scanner app** — [LiteReality Scanner on the App Store](https://apps.apple.com/gb/app/litereality/id6774158260), free.
