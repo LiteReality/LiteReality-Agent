@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.compile import simulate
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.result import StageStatus
-from litereality_agent.settings import LiteRealitySettings
+from lrauthor.pipeline.compile import simulate
+from lrauthor.pipeline.context import RunContext
+from lrauthor.pipeline.result import StageStatus
+from lrauthor.settings import LiteRealitySettings
 
 
 @pytest.fixture
@@ -92,11 +92,11 @@ def test_the_shake_is_opt_in_because_it_is_a_measurement_and_costs_minutes(conte
 
     monkeypatch.setattr(simulate, "run_module", record)
     simulate.run(context, {})
-    assert calls == ["litereality_agent.room_ops.export.mujoco_scene"]
+    assert calls == ["lrauthor.room_ops.export.mujoco_scene"]
 
     calls.clear()
     simulate.run(context, {"shake": True})
-    assert calls[-1] == "litereality_agent.room_ops.export.mujoco_shake"
+    assert calls[-1] == "lrauthor.room_ops.export.mujoco_shake"
 
 
 def _seeded(context: RunContext) -> None:

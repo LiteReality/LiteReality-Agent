@@ -65,14 +65,14 @@ Repository = "https://github.com/ZheningHuang/LiteReality-Agent"
 Issues = "https://github.com/ZheningHuang/LiteReality-Agent/issues"
 
 [project.scripts]
-litereality = "litereality_agent.cli:main"
+litereality = "lrauthor.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/litereality_agent"]
+packages = ["src/lrauthor"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -117,7 +117,7 @@ markers = [
 line-length = 100
 target-version = "py310"
 extend-exclude = ["data", "run", "run-*", "output_objinit_test", "scans_uploaded", "weights",
-                   "src/litereality_agent/pipeline/measure/ingest/preprocessing/vendor",
+                   "src/lrauthor/pipeline/measure/ingest/preprocessing/vendor",
                    "third_party", "legacy"]
 
 [tool.ruff.lint]
@@ -126,9 +126,9 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # Vendored/ported math + Blender helpers — keep their original style instead of risking edits.
-"src/litereality_agent/agent/tools/shared/image_selection/**/*.py" = ["E741", "E402", "E731"]
-"src/litereality_agent/models/object_generation/articulated-glb-agent/**/*.py" = ["F841", "I001"]
-"src/litereality_agent/models/trellis/inference.py" = ["I001"]
+"src/lrauthor/agent/tools/shared/image_selection/**/*.py" = ["E741", "E402", "E731"]
+"src/lrauthor/models/object_generation/articulated-glb-agent/**/*.py" = ["F841", "I001"]
+"src/lrauthor/models/trellis/inference.py" = ["I001"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from litereality_agent.agent.tools.render.tool import (
+from lrauthor.agent.tools.render.tool import (
     RenderInvocation,
     RenderParams,
     RenderTool,

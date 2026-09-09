@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from litereality_agent.room_ops.export import sim_assets
+from lrauthor.room_ops.export import sim_assets
 
 trimesh = pytest.importorskip("trimesh")
 
@@ -215,7 +215,7 @@ def test_nodes_are_assigned_to_links_past_the_room_glbs_rename(tmp_path):
 def test_only_this_objects_files_are_carried_into_the_room_package(tmp_path):
     """A generative object is a bare glb at the top of `reconstruct/`, so every chair in the room
     shares one `sim/`. Copying the DIRECTORY would put all of them into each object's package."""
-    from litereality_agent.room_ops.export.export_room import copy_sim_sidecar
+    from lrauthor.room_ops.export.export_room import copy_sim_sidecar
 
     shared = tmp_path / "sim"
     _write_sidecar(shared, _model_json("ChairCluster0"))
@@ -235,7 +235,7 @@ def test_only_this_objects_files_are_carried_into_the_room_package(tmp_path):
 def test_an_object_with_no_compiled_physics_copies_nothing_and_does_not_raise(tmp_path):
     """Physics is new; every room exported before it exists without one, and an export that
     refused those would be an export nobody could run."""
-    from litereality_agent.room_ops.export.export_room import copy_sim_sidecar
+    from lrauthor.room_ops.export.export_room import copy_sim_sidecar
 
     assert copy_sim_sidecar(tmp_path / "absent", tmp_path / "dest", "Table0") == 0
 
@@ -245,7 +245,7 @@ def test_sidecar_files_are_named_for_the_object_so_two_cannot_overwrite_each_oth
     generative object does — link-named files meant the second one's geometry replaced the first
     one's while both physics.json files went on claiming their own volumes, and both objects
     passed their own gate."""
-    from litereality_agent.models.object_generation.sim import properties
+    from lrauthor.models.object_generation.sim import properties
 
     first = {c["file"] for c in _model_json("ChairCluster0")["links"][0]["colliders"]}
     second = {c["file"] for c in _model_json("ChairCluster1")["links"][0]["colliders"]}

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import base64
 
-from litereality_agent.models.grounding_dino.modal import ModalDinoService
-from litereality_agent.settings import LiteRealitySettings
+from lrauthor.models.grounding_dino.modal import ModalDinoService
+from lrauthor.settings import LiteRealitySettings
 
 
 class Client:
@@ -37,7 +37,7 @@ def test_embed_uses_embedding_model():
 
 
 def test_registry_prefers_modal_dino(monkeypatch):
-    from litereality_agent.models import registry
+    from lrauthor.models import registry
 
     captured = {}
 
@@ -45,7 +45,7 @@ def test_registry_prefers_modal_dino(monkeypatch):
         def __init__(self, **options):
             captured.update(options)
 
-    monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
+    monkeypatch.setattr("lrauthor.models.grounding_dino.modal.ModalDinoService", Service)
     settings = LiteRealitySettings(
         _env_file=None,
         modal_profile="huangzhening",
@@ -67,7 +67,7 @@ def test_registry_prefers_modal_dino(monkeypatch):
 
 def test_registry_selects_modal_dino_from_tokens_alone(monkeypatch):
     """A token pair in .env is credentials enough — no ~/.modal.toml profile required."""
-    from litereality_agent.models import registry
+    from lrauthor.models import registry
 
     captured = {}
 
@@ -75,7 +75,7 @@ def test_registry_selects_modal_dino_from_tokens_alone(monkeypatch):
         def __init__(self, **options):
             captured.update(options)
 
-    monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
+    monkeypatch.setattr("lrauthor.models.grounding_dino.modal.ModalDinoService", Service)
     settings = LiteRealitySettings(
         _env_file=None, MODAL_TOKEN_ID="ak-1", MODAL_TOKEN_SECRET="as-2"
     )

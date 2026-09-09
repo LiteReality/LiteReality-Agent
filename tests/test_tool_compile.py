@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from litereality_agent.agent.tools.compile.tool import (
+from lrauthor.agent.tools.compile.tool import (
     CompileInvocation,
     CompileParams,
     CompileTool,
@@ -50,7 +50,7 @@ def test_a_room_that_never_compiled_is_not_fresh(room):
 
 
 def test_fresh_only_while_room_py_is_unchanged(room):
-    from litereality_agent.agent.tools.compile.tool import _write_compile_stamp
+    from lrauthor.agent.tools.compile.tool import _write_compile_stamp
 
     _write_compile_stamp(room)
     assert compile_is_fresh(room) is True, "a stamped, unedited room should not rebuild"
@@ -64,7 +64,7 @@ def test_fresh_only_while_room_py_is_unchanged(room):
 
 def test_stamp_never_raises_on_an_unwritable_room(room, monkeypatch):
     """The stamp is an optimisation. If it cannot be written the compile must still succeed."""
-    from litereality_agent.agent.tools.compile.tool import _write_compile_stamp
+    from lrauthor.agent.tools.compile.tool import _write_compile_stamp
 
     def _boom(*a, **k):
         raise OSError("read-only filesystem")
@@ -78,7 +78,7 @@ def test_missing_room_py_is_not_fresh_rather_than_an_error(tmp_path):
 
 
 def test_compile_api_rejects_a_missing_glb(room, tmp_path, monkeypatch):
-    from litereality_agent.room_ops import api
+    from lrauthor.room_ops import api
 
     monkeypatch.setattr(api.subprocess, "run", lambda _cmd: SimpleNamespace(returncode=0))
     assert api.compile_room(room, out_dir=tmp_path / "preview", bake=False) is None
@@ -86,7 +86,7 @@ def test_compile_api_rejects_a_missing_glb(room, tmp_path, monkeypatch):
 
 def test_compile_tool_does_not_stamp_a_missing_glb(room, tmp_path, monkeypatch):
     missing = tmp_path / "preview" / "Room.glb"
-    monkeypatch.setattr("litereality_agent.room_ops.compile_room", lambda *_a, **_k: missing)
+    monkeypatch.setattr("lrauthor.room_ops.compile_room", lambda *_a, **_k: missing)
 
     inv = CompileInvocation(CompileParams(regenerate=False))
     inv.bind(str(room), None)

@@ -41,8 +41,8 @@ scanned) interpenetration, and it belongs upstream in the layout repair.
 Directly, without the pipeline:
 
 ```bash
-uv run python -m litereality_agent.room_ops.export.mujoco_scene --room run/<scan>/realism_authoring/room
-uv run python -m litereality_agent.room_ops.export.mujoco_shake --scene .../mujoco/scene.xml --cutaway --video shake.mp4
+uv run python -m lrauthor.room_ops.export.mujoco_scene --room run/<scan>/realism_authoring/room
+uv run python -m lrauthor.room_ops.export.mujoco_shake --scene .../mujoco/scene.xml --cutaway --video shake.mp4
 ```
 
 ## Where the physics comes from
@@ -59,7 +59,7 @@ together, and each answers the question it is the authority on:
 
 That last one is the difference between a scene that happens to load in MuJoCo and a scene that is
 sim-ready. It is written at reconstruct time by
-[`models/object_generation/sim`](../../src/litereality_agent/models/object_generation/sim), from
+[`models/object_generation/sim`](../../src/lrauthor/models/object_generation/sim), from
 the GLB the recipe actually built, and gated by a solver *before* the object was ever placed in a
 room. It carries, per link:
 

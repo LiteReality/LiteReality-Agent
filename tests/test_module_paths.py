@@ -1,7 +1,7 @@
 """Every module named as a STRING must resolve.
 
 A cross-package call that goes through a subprocess names its target in a string — `-m
-litereality_agent.models.object_generation.generate` — and a string is invisible to every import
+lrauthor.models.object_generation.generate` — and a string is invisible to every import
 check, every linter and every rename. This has already failed twice in exactly the same way: a
 package moved, the imports were rewritten, and the `-m` strings quietly kept pointing at the old
 name. The symptom is never an ImportError in the parent; it is a stage that "completes" with a
@@ -18,11 +18,11 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-PKG = REPO / "src" / "litereality_agent"
+PKG = REPO / "src" / "lrauthor"
 
 # The top-level names that mean "a module in this repo". Anything else in a `-m` is a stdlib or
 # third-party module (`json.tool`, `pytest`) and not ours to check.
-OURS = ("litereality_agent",)
+OURS = ("lrauthor",)
 # Spellings that USED to be importable and must never come back — the exact regression above.
 RETIRED = ("authoring", "scene_builder", "scene_package", "init", "object_init",
            "backends", "integration", "scene_init", "realism_authoring", "services", "adapters")
@@ -41,9 +41,9 @@ SOURCES = sorted(
 
 
 def module_file(dotted: str) -> Path | None:
-    """`litereality_agent.a.b` -> the .py (or package dir) it names, or None."""
+    """`lrauthor.a.b` -> the .py (or package dir) it names, or None."""
     parts = dotted.split(".")
-    if parts[0] != "litereality_agent":
+    if parts[0] != "lrauthor":
         return None
     base = PKG.joinpath(*parts[1:])
     for candidate in (base.with_suffix(".py"), base / "__init__.py", base):
@@ -89,22 +89,22 @@ def test_no_retired_top_level_spelling():
         if dotted.split(".")[0] in RETIRED
     ]
     assert not stale, (
-        "module path(s) missing the `litereality_agent.` prefix — importable before the src layout, "
+        "module path(s) missing the `lrauthor.` prefix — importable before the src layout, "
         "silently dead after:\n  " + "\n  ".join(stale)
     )
 
 
 @pytest.mark.parametrize("dotted", [
-    "litereality_agent.models.object_generation.generate",  # subprocess target used by the pipeline
-    "litereality_agent.room_ops.compile.build_from_room",
-    "litereality_agent.room_ops.manifest",
-    "litereality_agent.pipeline.measure.flow",
-    "litereality_agent.models.grounding_dino.worker",
-    "litereality_agent.pipeline.author.realism.evidence",
-    "litereality_agent.pipeline.author.realism.entrypoint",
-    "litereality_agent.pipeline.author.realism.refine_objects",
-    "litereality_agent.pipeline.author.realism.materials",
-    "litereality_agent.pipeline.author.realism.quality",
+    "lrauthor.models.object_generation.generate",  # subprocess target used by the pipeline
+    "lrauthor.room_ops.compile.build_from_room",
+    "lrauthor.room_ops.manifest",
+    "lrauthor.pipeline.measure.flow",
+    "lrauthor.models.grounding_dino.worker",
+    "lrauthor.pipeline.author.realism.evidence",
+    "lrauthor.pipeline.author.realism.entrypoint",
+    "lrauthor.pipeline.author.realism.refine_objects",
+    "lrauthor.pipeline.author.realism.materials",
+    "lrauthor.pipeline.author.realism.quality",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename
@@ -113,8 +113,8 @@ def test_known_subprocess_targets(dotted: str):
 
 
 def test_executable_helpers_survived_the_layout_move():
-    from litereality_agent.agent.tools.shared import config
-    from litereality_agent.pipeline.author.reconstruct import flow
+    from lrauthor.agent.tools.shared import config
+    from lrauthor.pipeline.author.reconstruct import flow
 
     paths = (
         flow.LAUNCHER,
@@ -129,7 +129,7 @@ def test_executable_helpers_survived_the_layout_move():
 
 
 def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
-    from litereality_agent.pipeline.author.reconstruct import flow
+    from lrauthor.pipeline.author.reconstruct import flow
 
     monkeypatch.delenv("LITEREALITY_TRELLIS_PYTHON", raising=False)
     assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
@@ -138,7 +138,7 @@ def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
 def test_agent_render_tool_uses_the_engine_under_its_own_source():
     """The engine is the render tool's own source now; nothing may point back at room_ops."""
     source = (PKG / "agent" / "tools" / "render" / "tool.py").read_text(encoding="utf-8")
-    assert "litereality_agent.agent.tools.render.source" in source
+    assert "lrauthor.agent.tools.render.source" in source
     assert "room_ops.rendering.engine" not in source
     assert not (PKG / "room_ops" / "rendering" / "engine").exists(), (
         "an engine reappeared under room_ops — the render tool owns exactly one"
@@ -166,13 +166,13 @@ def test_blender_render_worker_finds_the_camera_renderer():
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from litereality_agent.pipeline.author.reconstruct.mesh_qc import chair_repair
+    from lrauthor.pipeline.author.reconstruct.mesh_qc import chair_repair
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")
     out = tmp_path / "Chair0.glb"
     settings = SimpleNamespace(modal_trellis_app="litereality-trellis")
-    monkeypatch.setattr("litereality_agent.settings.load_settings", lambda: settings)
+    monkeypatch.setattr("lrauthor.settings.load_settings", lambda: settings)
 
     class Hosted:
         def reconstruct(self, images, *, out_dir, asset_id, **options):
@@ -183,6 +183,6 @@ def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch)
             return str(path)
 
     monkeypatch.setattr(
-        "litereality_agent.models.registry.gen3d_from_settings", lambda configured: Hosted()
+        "lrauthor.models.registry.gen3d_from_settings", lambda configured: Hosted()
     )
     assert chair_repair._trellis_one("scan", ref, out, python=None, seed=42, decimation=50_000) == 0

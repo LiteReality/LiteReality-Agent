@@ -24,7 +24,7 @@ ROOM="$SCENE/realism_authoring/room"
 [ -f "$AUTHORED/Room.py" ] || { echo "!! no stashed authored room at $AUTHORED"; exit 1; }
 
 echo "── seed · $SCAN ───────────────────────────────────────────"
-$PY -m litereality_agent stage seed "$SCENE" --output-root "$ROOT" --force
+$PY -m lrauthor stage seed "$SCENE" --output-root "$ROOT" --force
 
 SEED="$SCENE/scene_init/scene_stage/room_init/room"
 [ -f "$SEED/Room.py" ] || { echo "!! seed produced no Room.py"; exit 1; }
@@ -40,10 +40,10 @@ $(ls -d "$ROOM/Objects"/*/*/sim 2>/dev/null | wc -l) with physics; \
 support declarations in Room.py: $(grep -c 'rests_on=\|attached_to=' "$ROOM/Room.py" || true)"
 
 echo "── publish · build the room ───────────────────────────────"
-$PY -m litereality_agent stage publish "$SCENE" --output-root "$ROOT" --compare-frames 0
+$PY -m lrauthor stage publish "$SCENE" --output-root "$ROOT" --compare-frames 0
 
 echo "── simulate · MJCF ────────────────────────────────────────"
-$PY -m litereality_agent stage simulate "$SCENE" --output-root "$ROOT"
+$PY -m lrauthor stage simulate "$SCENE" --output-root "$ROOT"
 
 echo "── done · $SCAN ───────────────────────────────────────────"
 cat "$SCENE/realism_authoring/mujoco/export_report.json" 2>/dev/null || true

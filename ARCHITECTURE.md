@@ -13,7 +13,7 @@ prerequisites, reuse, failure handling, and state in `run/<scene>/.litereality/p
 ## Package layout
 
 ```text
-src/litereality_agent/
+src/lrauthor/
 ├── cli.py               the supported command surface
 ├── settings.py          Pydantic environment settings
 ├── pipeline/            workflow ordering, state, and phase implementations

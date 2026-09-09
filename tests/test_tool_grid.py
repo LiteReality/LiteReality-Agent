@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from litereality_agent.agent.tools.grid.tool import GridInvocation, GridParams, GridTool
+from lrauthor.agent.tools.grid.tool import GridInvocation, GridParams, GridTool
 
 PPM = 100.0  # pixels per metre — a 4 m wall at 2.6 m high renders 400 × 260
 
@@ -23,7 +23,7 @@ def surface_ref(tmp_path, monkeypatch):
     """A stitch and its manifest, wired into the harness config the tool reads."""
     from PIL import Image
 
-    from litereality_agent.agent.tools.shared import config
+    from lrauthor.agent.tools.shared import config
 
     ref = tmp_path / "surface_ref"
     ref.mkdir()
@@ -79,7 +79,7 @@ def test_missing_stitch_says_which_surface(surface_ref):
 
 def test_missing_manifest_is_actionable(tmp_path, monkeypatch):
     """No ppm means no metric scale. Refuse rather than draw an unlabelled decorative grid."""
-    from litereality_agent.agent.tools.shared import config
+    from lrauthor.agent.tools.shared import config
 
     monkeypatch.setattr(config, "SURFACE_REF", tmp_path, raising=False)
     monkeypatch.setattr(config, "SURFACE_REF_MANIFEST", tmp_path / "missing.json", raising=False)

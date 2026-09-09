@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.agent import trace_report
+from lrauthor.agent import trace_report
 
 SEED = "SHELL = {'walls': {}}\n"
 AUTHORED = "SHELL = {'walls': {'Wall0': 1}}\n"
@@ -151,7 +151,7 @@ def _scene_with_room(tmp_path: Path) -> Path:
 def test_ending_a_pass_writes_the_report(tmp_path, monkeypatch):
     """A run that DIES never reaches publish, which is exactly when the report is wanted — so it
     is rendered at the end of every pass rather than once at the end of the pipeline."""
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent.trace import AgentTrace
 
     scene = _scene_with_room(tmp_path)
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
@@ -170,7 +170,7 @@ def test_ending_a_pass_writes_the_report(tmp_path, monkeypatch):
 
 
 def test_report_can_be_disabled(tmp_path, monkeypatch):
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent.trace import AgentTrace
 
     scene = _scene_with_room(tmp_path)
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
@@ -184,8 +184,8 @@ def test_report_can_be_disabled(tmp_path, monkeypatch):
 
 def test_a_broken_report_never_takes_down_the_run(tmp_path, monkeypatch):
     """The trace describes the run; it must not be able to end it. Same rule as the rest of trace.py."""
-    from litereality_agent.agent import trace_report as tr_mod
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent import trace_report as tr_mod
+    from lrauthor.agent.trace import AgentTrace
 
     scene = _scene_with_room(tmp_path)
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(scene.parent))
@@ -203,7 +203,7 @@ def test_a_broken_report_never_takes_down_the_run(tmp_path, monkeypatch):
 
 def test_no_report_for_a_traces_dir_outside_a_scene(tmp_path, monkeypatch):
     """`parents[3]` is only the scene when the layout says so — never write into a stranger."""
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent.trace import AgentTrace
 
     monkeypatch.delenv("LITEREALITY_SCAN", raising=False)
     room = tmp_path / "a" / "b" / "c" / "room"

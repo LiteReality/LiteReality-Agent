@@ -18,9 +18,9 @@ from urllib.request import urlopen
 
 import pytest
 
-from litereality_agent.pipeline.author import live
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.room_ops import serve
+from lrauthor.pipeline.author import live
+from lrauthor.pipeline.context import RunContext
+from lrauthor.room_ops import serve
 
 
 def _event(seq: int, t: float, **extra) -> str:
@@ -168,7 +168,7 @@ def test_rebuild_records_failure_without_raising(run_tree: Path, monkeypatch) ->
     def boom(*_a, **_k):
         raise RuntimeError("SyntaxError: unexpected EOF")
 
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", boom)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", boom)
     assert room.rebuild() is False
     assert room.state(0)["status"] == "failed"
     assert "unexpected EOF" in room.state(0)["error"]
@@ -185,7 +185,7 @@ def test_unparseable_room_is_rejected_before_compiling(run_tree: Path, monkeypat
     def never(*_a, **_k):
         raise AssertionError("compile_room must not run on a Room.py that does not parse")
 
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", never)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", never)
 
     assert room.rebuild() is False
     state = room.state(0)
@@ -199,7 +199,7 @@ def test_parseable_room_still_compiles(run_tree: Path, monkeypatch) -> None:
     built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
     built.parent.mkdir(parents=True, exist_ok=True)
     built.write_bytes(b"geometry")
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", lambda *a, **k: built)
 
     assert room.rebuild() is True
     assert room.state(0)["error"] == ""
@@ -212,7 +212,7 @@ def test_recovers_after_the_syntax_error_is_fixed(run_tree: Path, monkeypatch) -
     built = run_tree / "realism_authoring" / "room_preview" / "Room.glb"
     built.parent.mkdir(parents=True, exist_ok=True)
     built.write_bytes(b"geometry")
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", lambda *a, **k: built)
 
     source.write_text("def broken(:\n")
     assert room.rebuild() is False
@@ -237,8 +237,8 @@ def test_geometry_publishes_before_the_bake(run_tree: Path, monkeypatch) -> None
         Path(out).write_bytes(b"baked")
         return 0
 
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
-    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", slow_bake)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("lrauthor.room_ops.api.bake_room", slow_bake)
 
     assert room.rebuild() is True
     assert room.state(0)["phase"] == "geometry"      # published while the bake is still running
@@ -266,8 +266,8 @@ def test_superseded_bake_is_dropped(run_tree: Path, monkeypatch) -> None:
         Path(out).write_bytes(b"stale-bake")
         return 0
 
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
-    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", bake)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("lrauthor.room_ops.api.bake_room", bake)
 
     room.rebuild()
     for _ in range(100):
@@ -287,8 +287,8 @@ def test_no_bake_stays_single_phase(run_tree: Path, monkeypatch) -> None:
     def refuse(*_a, **_k):
         raise AssertionError("bake_room must not run with bake=False")
 
-    monkeypatch.setattr("litereality_agent.room_ops.api.compile_room", lambda *a, **k: built)
-    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", refuse)
+    monkeypatch.setattr("lrauthor.room_ops.api.compile_room", lambda *a, **k: built)
+    monkeypatch.setattr("lrauthor.room_ops.api.bake_room", refuse)
 
     assert room.rebuild() is True
     assert room.build == 1 and room.state(0)["phase"] == "geometry"
@@ -440,7 +440,7 @@ def test_live_flag_shares_one_run_context_with_the_stage(run_tree: Path, monkeyp
     then writes its trace under one root while the viewer tails another, and the page shows a stale
     trace forever with nothing reporting an error. Sharing the context makes that unrepresentable.
     """
-    from litereality_agent import cli
+    from lrauthor import cli
 
     context = _context(run_tree)
     seen = {}
@@ -469,7 +469,7 @@ def test_live_starts_before_the_room_exists(run_tree: Path, monkeypatch, capsys)
     scene's first authoring run there is no `Room.py` when the viewer starts. Requiring one up
     front made `--live` usable only on the second run, which is the run you least need to watch.
     """
-    from litereality_agent import cli
+    from lrauthor import cli
 
     context = _context(run_tree)
     shutil.rmtree(context.authored_room)  # a scene that has been seeded but never authored
@@ -518,7 +518,7 @@ def test_the_viewer_picks_the_room_up_when_the_stage_writes_it(run_tree: Path, m
 
 
 def test_without_live_flag_nothing_is_served(run_tree: Path, monkeypatch) -> None:
-    from litereality_agent import cli
+    from lrauthor import cli
 
     def refuse(*_a, **_k):
         raise AssertionError("no viewer may start without --live")

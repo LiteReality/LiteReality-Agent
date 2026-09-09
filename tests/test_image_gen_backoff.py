@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.pipeline.measure.ingest.references import image_gen
+from lrauthor.pipeline.measure.ingest.references import image_gen
 
 
 class _Response:

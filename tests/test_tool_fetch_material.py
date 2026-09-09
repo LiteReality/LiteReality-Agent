@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.agent.tools.fetch_material import tool as fm
+from lrauthor.agent.tools.fetch_material import tool as fm
 
 # A miniature Poly Haven index carrying the exact trap the whole-word rule exists to stop.
 _ASSETS = {

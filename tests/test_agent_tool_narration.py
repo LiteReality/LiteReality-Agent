@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.agent.tool_narration import ToolNarrator, hint_for, tool_label
+from lrauthor.agent.tool_narration import ToolNarrator, hint_for, tool_label
 
 sdk_types = pytest.importorskip("claude_agent_sdk.types")
 ToolUseBlock = sdk_types.ToolUseBlock
@@ -114,7 +114,7 @@ def test_a_supplied_description_always_wins():
 def test_paths_collapse_to_basenames_so_the_command_is_visible():
     """A Bash hint is mostly a shared absolute prefix; without collapsing it the truncation
     window closes before the command itself appears."""
-    from litereality_agent import REPO_ROOT
+    from lrauthor import REPO_ROOT
 
     hint = hint_for("Bash", {"command": f"ls {REPO_ROOT}/run/Office_room/realism_authoring/room"})
     assert hint == "ls room"

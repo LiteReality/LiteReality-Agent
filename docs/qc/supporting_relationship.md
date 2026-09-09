@@ -33,7 +33,7 @@ check_support("…/room_preview/Room.glb")   ->  [findings]
 ```
 
 ```bash
-python -m litereality_agent.pipeline.room_qc.support --glb <Room.glb>
+python -m lrauthor.pipeline.room_qc.support --glb <Room.glb>
 # exit 0 = pass, 1 = fail
 ```
 

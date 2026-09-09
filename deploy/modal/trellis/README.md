@@ -1,7 +1,7 @@
 # TRELLIS on Modal
 
 This is a deployment wrapper around
-`litereality_agent.models.trellis.inference`; model inference remains in `src/` and the Modal
+`lrauthor.models.trellis.inference`; model inference remains in `src/` and the Modal
 runtime only supplies a GPU, parallel execution, and a persistent weight cache.
 
 Modal associates a deployment with the workspace belonging to the active profile; the workspace

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_service_result_is_an_error_when_an_expected_glb_is_missing(tmp_path, monkeypatch):
-    from litereality_agent.pipeline.author.reconstruct import flow, service
+    from lrauthor.pipeline.author.reconstruct import flow, service
 
     reference = tmp_path / "Chair0.png"
     reference.write_bytes(b"reference")
@@ -28,7 +28,7 @@ def test_service_result_is_an_error_when_an_expected_glb_is_missing(tmp_path, mo
 
 
 def test_flow_returns_nonzero_when_requested_assets_are_missing(monkeypatch):
-    from litereality_agent.pipeline.measure import flow
+    from lrauthor.pipeline.measure import flow
 
     monkeypatch.setattr(flow, "resolve_scan", lambda *_args: (Path("capture"), "scan"))
     monkeypatch.setattr(flow, "process_scan", lambda *_args: {"scan": "scan"})
@@ -40,7 +40,7 @@ def test_flow_returns_nonzero_when_requested_assets_are_missing(monkeypatch):
 
 
 def test_flow_allows_a_room_with_no_expected_assets(monkeypatch):
-    from litereality_agent.pipeline.measure import flow
+    from lrauthor.pipeline.measure import flow
 
     monkeypatch.setattr(flow, "resolve_scan", lambda *_args: (Path("capture"), "scan"))
     monkeypatch.setattr(flow, "process_scan", lambda *_args: {"scan": "scan"})

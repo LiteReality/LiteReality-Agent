@@ -18,7 +18,7 @@ image = (
         context_dir=deployment_root,
     )
     .env({"HF_HOME": str(WEIGHTS_ROOT / "huggingface")})
-    .add_local_python_source("litereality_agent")
+    .add_local_python_source("lrauthor")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
@@ -35,7 +35,7 @@ app = modal.App(APP_NAME)
 )
 def infer(request: dict) -> dict:
     """Serve either a detection or embedding request using shared model code."""
-    from litereality_agent.models.grounding_dino.worker import hosted_handler
+    from lrauthor.models.grounding_dino.worker import hosted_handler
 
     response = hosted_handler(request)
     weights.commit()

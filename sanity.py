@@ -79,14 +79,14 @@ def _load_dotenv() -> bool:
     checkpoint (`LR_DINO_MODEL`, `LR_DINO_EMBED_MODEL`) or image model the pipeline will not touch
     — the opposite of its job. Existing shell env wins. Returns True if a .env file was found.
 
-    The package's own loader is preferred: it is what `uv run -m litereality_agent` calls, so
+    The package's own loader is preferred: it is what `uv run -m lrauthor` calls, so
     sanity cannot drift from the real run, and it already parses models.env's
     `export K="${K:-default}"   # comment` grammar (getting the trailing comment right is fiddly —
     see models/config.py._value). The inline parse below is the fallback for a half-installed tree,
     where the package is unimportable and only .env's paths and keys still mean anything."""
     envp = ROOT / ".env"
     try:
-        from litereality_agent.settings import load_settings
+        from lrauthor.settings import load_settings
 
         load_settings(ROOT).apply_environment()
         return envp.is_file()
@@ -133,7 +133,7 @@ def _hosted() -> bool:
     to `uv pip install torch` — the one thing hosting exists to avoid.
     """
     try:
-        from litereality_agent.settings import load_settings
+        from lrauthor.settings import load_settings
 
         return bool(load_settings(ROOT).modal_configured())
     except Exception:  # noqa: BLE001 — a half-installed tree just means "not hosted"
@@ -167,7 +167,7 @@ def _check_local_dinov2() -> None:
     """Chair grouping, running in this process. Silent-degradation risk: unavailable DINOv2 does
     not raise — it falls back to hand-crafted CV features and quietly loses grouping quality."""
     try:
-        from litereality_agent.models.device import pick_device
+        from lrauthor.models.device import pick_device
 
         dev = pick_device()
         label = {"cuda": " (NVIDIA GPU)", "mps": " (Apple Silicon GPU)",
@@ -176,7 +176,7 @@ def _check_local_dinov2() -> None:
     except Exception as e:  # noqa: BLE001
         fail(f"could not select a torch device: {type(e).__name__}: {e}")
     try:
-        from litereality_agent.models.dinov2 import inference as dino_embed
+        from lrauthor.models.dinov2 import inference as dino_embed
 
         mid = dino_embed.default_model_id()
         if not dino_embed.available():
@@ -200,7 +200,7 @@ def _check_local_dinov2() -> None:
 def _check_local_detect() -> None:
     """Object detection, running in this process."""
     try:
-        from litereality_agent.models.grounding_dino import inference as dino_detect
+        from lrauthor.models.grounding_dino import inference as dino_detect
 
         mid = dino_detect.default_model_id()
         if not dino_detect.available():
@@ -229,7 +229,7 @@ def _check_hosted_dino(*, embed: bool) -> None:
     """
     what = "DINOv2 embedding" if embed else "GroundingDINO detection"
     try:
-        from litereality_agent.models.registry import detection_from_settings
+        from lrauthor.models.registry import detection_from_settings
 
         service = detection_from_settings()
     except Exception as e:  # noqa: BLE001
@@ -344,7 +344,7 @@ def main() -> int:
         # inside /Applications/Blender.app/Contents/MacOS/) it reported "not found" and aborted a run
         # the pipeline itself would have completed.
         try:
-            from litereality_agent.room_ops.paths import find_blender
+            from lrauthor.room_ops.paths import find_blender
 
             binp = find_blender()
         except SystemExit:

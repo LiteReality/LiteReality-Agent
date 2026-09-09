@@ -64,7 +64,7 @@ snapshot_download('{DINOV3_REPO}', revision='{DINOV3_REVISION}', local_dir='{DIN
             "LITEREALITY_DINOV3": str(DINOV3_DIR),
         }
     )
-    .add_local_python_source("litereality_agent")
+    .add_local_python_source("lrauthor")
 )
 weights = modal.Volume.from_name(MODEL_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
@@ -74,7 +74,7 @@ _pipeline = None
 def _load_pipeline():
     global _pipeline
     if _pipeline is None:
-        from litereality_agent.models.trellis.inference import (
+        from lrauthor.models.trellis.inference import (
             DEFAULT_MODEL,
             load_pipeline,
             prepare_local_model,
@@ -99,7 +99,7 @@ def _load_pipeline():
 )
 def generate(request: dict) -> dict:
     """Convert the transport payload into one GLB using model-owned inference code."""
-    from litereality_agent.models.trellis.inference import generate as generate_glb
+    from lrauthor.models.trellis.inference import generate as generate_glb
 
     with tempfile.TemporaryDirectory() as temporary_dir:
         temp = Path(temporary_dir)

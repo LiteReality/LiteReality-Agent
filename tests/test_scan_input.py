@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.cli import looks_like_scan_dir, resolve_scan
+from lrauthor.cli import looks_like_scan_dir, resolve_scan
 
 
 @pytest.fixture
@@ -99,7 +99,7 @@ def test_resolve_scan_dir_honours_the_scans_root(tmp_path, monkeypatch):
     """It used to hardcode `<repo>/scans_uploaded`, so a capture given as a FOLDER was never
     found. That does not fail loudly: the room assembles without the capture's ARKit cameras and
     comes out "geometry only" — a quietly worse build, from a command that reported success."""
-    from litereality_agent.room_ops import paths as config
+    from lrauthor.room_ops import paths as config
 
     capture = tmp_path / "example_scans" / "Office_room"
     capture.mkdir(parents=True)
@@ -113,7 +113,7 @@ def test_resolve_scan_dir_honours_the_scans_root(tmp_path, monkeypatch):
 def test_the_staged_usdz_copy_is_recognised(tmp_path, monkeypatch):
     """object_init stages the capture as `<scan>.usdz`, not `room.usdz` — the old probe only
     looked for the latter, so the fallback location never matched either."""
-    from litereality_agent.room_ops import paths as config
+    from lrauthor.room_ops import paths as config
 
     monkeypatch.setenv("LR_SCANS_DIR", str(tmp_path / "nowhere"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
@@ -126,7 +126,7 @@ def test_the_staged_usdz_copy_is_recognised(tmp_path, monkeypatch):
 
 def test_a_missing_capture_returns_the_expected_location(tmp_path, monkeypatch):
     """Not found should point at where it was looked for, so the error names a fixable path."""
-    from litereality_agent.room_ops import paths as config
+    from lrauthor.room_ops import paths as config
 
     monkeypatch.setenv("LR_SCANS_DIR", str(tmp_path / "captures"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))

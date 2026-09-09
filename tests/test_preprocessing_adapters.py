@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from litereality_agent.pipeline.measure.ingest.preprocessing import object_images
+from lrauthor.pipeline.measure.ingest.preprocessing import object_images
 
 
 def test_object_image_adapter_passes_project_crop_setting(monkeypatch):

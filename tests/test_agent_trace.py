@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from litereality_agent.agent.trace import AgentTrace
+from lrauthor.agent.trace import AgentTrace
 
 
 def _events(path: Path) -> list[dict]:
@@ -78,7 +78,7 @@ def test_author_attributes_a_successful_stitch_read(tmp_path, monkeypatch, capsy
     """The author must recover a result's name and input from its matching use block."""
     from claude_agent_sdk.types import ToolResultBlock, ToolUseBlock
 
-    from litereality_agent.agent import author, providers
+    from lrauthor.agent import author, providers
 
     room = tmp_path / "run" / "scan" / "realism_authoring" / "room"
     room.mkdir(parents=True)
@@ -104,9 +104,9 @@ def test_author_attributes_a_successful_stitch_read(tmp_path, monkeypatch, capsy
 
     monkeypatch.setattr(author, "surfaces_for", lambda _room: ["Wall0"])
     monkeypatch.setattr(providers, "resolve", lambda *_args: ReadHarness())
-    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
-    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
-    monkeypatch.setattr("litereality_agent.agent.scratch.rescue", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("lrauthor.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("lrauthor.agent.scratch.prompt_line", lambda: "")
+    monkeypatch.setattr("lrauthor.agent.scratch.rescue", lambda *_args, **_kwargs: [])
 
     assert asyncio.run(author.run(room, refs, scan, "test", 1)) == 0
     output = capsys.readouterr().out

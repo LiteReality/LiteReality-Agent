@@ -138,7 +138,7 @@ def _scan_roots() -> list[Path]:
     not load `.env`, so a raw env read finds nothing and every scan test skips while looking like
     it ran. That is exactly how the previous scan test died unnoticed.
     """
-    from litereality_agent.settings import load_settings
+    from lrauthor.settings import load_settings
 
     repo = Path(__file__).resolve().parents[1]
     roots = [load_settings().resolved_scans_dir(), repo / "example-scans", repo / "scans_uploaded"]

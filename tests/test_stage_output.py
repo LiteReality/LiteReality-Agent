@@ -21,8 +21,8 @@ import time
 
 import pytest
 
-from litereality_agent.pipeline import support
-from litereality_agent.pipeline.context import RunContext
+from lrauthor.pipeline import support
+from lrauthor.pipeline.context import RunContext
 
 # Colours, an in-place redraw, a pause long enough that buffering is unmistakable, and a
 # non-zero exit — a pipeline stage in miniature.

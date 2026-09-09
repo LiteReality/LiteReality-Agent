@@ -17,7 +17,7 @@ import asyncio
 
 import pytest
 
-from litereality_agent.agent.tools.select_views.tool import (
+from lrauthor.agent.tools.select_views.tool import (
     SelectViewsInvocation,
     SelectViewsParams,
     SelectViewsTool,

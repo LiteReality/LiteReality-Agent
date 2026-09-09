@@ -2,7 +2,7 @@
 
 `models.env` is shell, so shell entry points just source it. Everything reachable only through
 the CLI could not, and the two silently diverged: `./the CLI` generated references with the model
-the file names while `uv run -m litereality_agent scene_init` fell back to the code default. Nothing
+the file names while `uv run -m lrauthor scene_init` fell back to the code default. Nothing
 fails — you just get different images, and only notice by inspecting them.
 
 The precedence chain is the load-bearing part: shell env > `.env` > `models.env`, matching the
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.settings import load_settings
+from lrauthor.settings import load_settings
 
 MODELS_ENV = """\
 # the one place models are picked
@@ -90,7 +90,7 @@ def test_loading_twice_is_stable(repo):
 def test_artifact_names_are_provider_neutral():
     """The two reference images are named for WHAT they are, not who made them — the old
     `gemini_input` / `nano_banana_raw` outlived both providers."""
-    from litereality_agent.pipeline.measure import paths as oi
+    from lrauthor.pipeline.measure import paths as oi
 
     assert oi.INPUT_SHEET == "input2imagegen.jpg"
     assert oi.CLEAN_REFERENCE == "clean_obj_reference.png"
@@ -99,7 +99,7 @@ def test_artifact_names_are_provider_neutral():
 def test_readers_accept_the_pre_rename_spelling(tmp_path):
     """An existing tree cost ~6 minutes of model calls to produce. Renaming the writers must not
     make it unreadable — `ref_artifact` finds either spelling, newest name first."""
-    from litereality_agent.pipeline.measure import paths as oi
+    from lrauthor.pipeline.measure import paths as oi
 
     legacy = tmp_path / "legacy"
     legacy.mkdir()
@@ -120,7 +120,7 @@ def test_writers_never_emit_the_old_names():
     import re
     from pathlib import Path as P
 
-    pkg = P(__file__).resolve().parents[1] / "src" / "litereality_agent"
+    pkg = P(__file__).resolve().parents[1] / "src" / "lrauthor"
     write = re.compile(r"""(?:out_dir|d|od|croot|ref_dir)\s*/\s*["'](?:gemini_input|nano_banana_raw)""")
     offenders = [
         f"{p.relative_to(pkg)}:{i}"
