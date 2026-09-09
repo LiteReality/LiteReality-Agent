@@ -40,11 +40,17 @@ def compile_object(glb: Path, *, run_checks: bool = True, decompose: bool = True
 
 
 def compile_directory(recon_dir: Path, *, run_checks: bool = True) -> dict:
-    """Every procedural object under `reconstruct/` — the ones that have their own directory,
-    which is exactly the set that was built from a recipe and can carry articulation."""
+    """Every object under `reconstruct/`, in both shapes it comes in.
+
+    A recipe-built object lives in its own directory next to the `object.py` that made it; a
+    generative one (TRELLIS chairs, sofas) is a bare glb at the top level. Only the first kind can
+    carry articulation, which is why the articulation work only ever looked there — but a chair is
+    still a rigid body that a scene has to give a mass and a collider, and skipping it leaves the
+    room export inventing both for exactly the objects most likely to be knocked over.
+    """
     recon_dir = Path(recon_dir)
-    rows = [compile_object(glb, run_checks=run_checks)
-            for glb in sorted(recon_dir.glob("*/*.glb"))]
+    glbs = sorted(recon_dir.glob("*/*.glb")) + sorted(recon_dir.glob("*.glb"))
+    rows = [compile_object(glb, run_checks=run_checks) for glb in glbs]
     summary = {"objects": len(rows),
                "ok": sum(r["status"] == "ok" for r in rows),
                "passed": sum(r.get("check") == "pass" for r in rows),
