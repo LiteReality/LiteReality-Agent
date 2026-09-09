@@ -1,0 +1,100 @@
+{
+  "sweep": {
+    "object": "Storage1/base_link",
+    "mesh_volume": 0.3339,
+    "hull_volume": 1.1973,
+    "material_fraction": 0.2789,
+    "samples": 119758,
+    "rows": [
+      {
+        "budget": 1,
+        "parts": 1,
+        "seconds": 0.0,
+        "filled_fraction": 1.0,
+        "interior_kept": 0.0
+      },
+      {
+        "budget": 4,
+        "parts": 4,
+        "seconds": 13.0,
+        "filled_fraction": 1.0,
+        "interior_kept": 0.0
+      },
+      {
+        "budget": 8,
+        "parts": 8,
+        "seconds": 12.8,
+        "filled_fraction": 0.9999,
+        "interior_kept": 0.0001
+      },
+      {
+        "budget": 12,
+        "parts": 12,
+        "seconds": 12.3,
+        "filled_fraction": 0.5862,
+        "interior_kept": 0.5738
+      },
+      {
+        "budget": 16,
+        "parts": 16,
+        "seconds": 12.5,
+        "filled_fraction": 0.5312,
+        "interior_kept": 0.6501
+      },
+      {
+        "budget": 24,
+        "parts": 24,
+        "seconds": 11.3,
+        "filled_fraction": 0.4829,
+        "interior_kept": 0.717
+      }
+    ]
+  },
+  "cost": [
+    {
+      "object": "Wall4_Door_0",
+      "colliders": 13,
+      "mean_contacts": 11.7,
+      "ms_per_step": 0.0101,
+      "times_realtime": 198.0,
+      "slivers_under_half_percent": 5,
+      "sliver_volume_share": 0.0109
+    },
+    {
+      "object": "Dishwasher0",
+      "colliders": 20,
+      "mean_contacts": 11.4,
+      "ms_per_step": 0.0104,
+      "times_realtime": 192.0,
+      "slivers_under_half_percent": 8,
+      "sliver_volume_share": 0.0011
+    },
+    {
+      "object": "Refrigerator0",
+      "colliders": 9,
+      "mean_contacts": 2.9,
+      "ms_per_step": 0.0076,
+      "times_realtime": 263.0,
+      "slivers_under_half_percent": 4,
+      "sliver_volume_share": 0.0027
+    },
+    {
+      "object": "Storage1",
+      "colliders": 52,
+      "mean_contacts": 11.0,
+      "ms_per_step": 0.0171,
+      "times_realtime": 117.0,
+      "slivers_under_half_percent": 23,
+      "sliver_volume_share": 0.0355
+    },
+    {
+      "object": "Bed0",
+      "colliders": 53,
+      "mean_contacts": 14.0,
+      "ms_per_step": 0.0145,
+      "times_realtime": 138.0,
+      "slivers_under_half_percent": 17,
+      "sliver_volume_share": 0.0358
+    }
+  ]
+}
