@@ -170,7 +170,7 @@ def _run_module():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.pipeline.scene_init import flow as run
+    from litereality_agent.pipeline.measure import flow as run
 
     return run
 
@@ -183,7 +183,7 @@ def test_expected_assets_covers_both_routes_and_openings(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -203,7 +203,7 @@ def test_built_count_recognises_both_glb_layouts(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -525,7 +525,7 @@ def _run_mod():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.pipeline.scene_init import flow as run
+    from litereality_agent.pipeline.measure import flow as run
 
     return run
 
@@ -552,7 +552,7 @@ def test_branches_own_disjoint_objects(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -773,7 +773,7 @@ def test_a_half_written_object_does_not_count_as_built(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -803,7 +803,7 @@ def test_the_counter_matches_what_the_builder_would_skip(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from litereality_agent.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -851,8 +851,8 @@ def test_polish_reuses_a_recorded_run(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
-    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
+    from litereality_agent.pipeline.measure import paths as config
+    from litereality_agent.pipeline.measure.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")
@@ -878,8 +878,8 @@ def test_force_ignores_the_marker(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
-    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
+    from litereality_agent.pipeline.measure import paths as config
+    from litereality_agent.pipeline.measure.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")

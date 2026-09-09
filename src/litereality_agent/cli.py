@@ -235,7 +235,7 @@ def _live_viewer(args, context):
         yield lambda _note: None
         return
 
-    from litereality_agent.pipeline.realism_authoring import live
+    from litereality_agent.pipeline.author import live
 
     bake = not args.live_no_bake
     room, server, url = live.start(context, port=args.live_port, bake=bake)
@@ -303,7 +303,7 @@ def _stage(args) -> int:
 
 
 def _live(args) -> int:
-    from litereality_agent.pipeline.realism_authoring import live
+    from litereality_agent.pipeline.author import live
 
     return live.serve(
         args.target, port=args.port, host=args.host, poll=args.poll,
@@ -314,7 +314,7 @@ def _live(args) -> int:
 def _view(args) -> int:
     """Walk a published room. `publish` knows which file it wrote; `room_ops.walk` serves any glb —
     resolving one run's tree to the other's argument is this layer's whole job."""
-    from litereality_agent.pipeline.room_qc import publish
+    from litereality_agent.pipeline.compile import publish
     from litereality_agent.room_ops import walk
 
     context = _context(args)

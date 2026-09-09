@@ -8,13 +8,13 @@ normal, LAB-recoloured to the measured colour) and `render` / `critic` / `select
 optional self-check it may call to compare its render against the capture photos and correct
 colour and placement.
 
-    uv run python -m litereality_agent.pipeline.realism_authoring.author.entrypoint --scene <scene dir>
+    uv run python -m litereality_agent.pipeline.author.realism.entrypoint --scene <scene dir>
 
 `--scene` is the scene package the seed stage wrote (the folder holding `scene.json`); it supplies the
 room, the surface references and the capture. Omit it entirely when $LR_SCENE is set or the
 current directory is inside a package. The explicit spelling still works and still wins:
 
-    ... -m litereality_agent.pipeline.realism_authoring.author.entrypoint \
+    ... -m litereality_agent.pipeline.author.realism.entrypoint \
         --room <room dir> --surface-ref <dir> --scan <scan dir>
 """
 

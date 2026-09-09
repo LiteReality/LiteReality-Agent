@@ -90,7 +90,7 @@ def test_loading_twice_is_stable(repo):
 def test_artifact_names_are_provider_neutral():
     """The two reference images are named for WHAT they are, not who made them — the old
     `gemini_input` / `nano_banana_raw` outlived both providers."""
-    from litereality_agent.pipeline.scene_init import paths as oi
+    from litereality_agent.pipeline.measure import paths as oi
 
     assert oi.INPUT_SHEET == "input2imagegen.jpg"
     assert oi.CLEAN_REFERENCE == "clean_obj_reference.png"
@@ -99,7 +99,7 @@ def test_artifact_names_are_provider_neutral():
 def test_readers_accept_the_pre_rename_spelling(tmp_path):
     """An existing tree cost ~6 minutes of model calls to produce. Renaming the writers must not
     make it unreadable — `ref_artifact` finds either spelling, newest name first."""
-    from litereality_agent.pipeline.scene_init import paths as oi
+    from litereality_agent.pipeline.measure import paths as oi
 
     legacy = tmp_path / "legacy"
     legacy.mkdir()

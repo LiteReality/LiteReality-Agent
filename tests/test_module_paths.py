@@ -98,13 +98,13 @@ def test_no_retired_top_level_spelling():
     "litereality_agent.models.object_generation.generate",  # subprocess target used by the pipeline
     "litereality_agent.room_ops.compile.build_from_room",
     "litereality_agent.room_ops.manifest",
-    "litereality_agent.pipeline.scene_init.flow",
+    "litereality_agent.pipeline.measure.flow",
     "litereality_agent.models.grounding_dino.worker",
-    "litereality_agent.pipeline.realism_authoring.author.evidence",
-    "litereality_agent.pipeline.realism_authoring.author.entrypoint",
-    "litereality_agent.pipeline.realism_authoring.author.refine_objects",
-    "litereality_agent.pipeline.realism_authoring.author.materials",
-    "litereality_agent.pipeline.realism_authoring.author.quality",
+    "litereality_agent.pipeline.author.realism.evidence",
+    "litereality_agent.pipeline.author.realism.entrypoint",
+    "litereality_agent.pipeline.author.realism.refine_objects",
+    "litereality_agent.pipeline.author.realism.materials",
+    "litereality_agent.pipeline.author.realism.quality",
 ])
 def test_known_subprocess_targets(dotted: str):
     """The specific modules some other process launches by name, pinned individually so a rename
@@ -114,7 +114,7 @@ def test_known_subprocess_targets(dotted: str):
 
 def test_executable_helpers_survived_the_layout_move():
     from litereality_agent.agent.tools.shared import config
-    from litereality_agent.pipeline.scene_init.reconstruct import flow
+    from litereality_agent.pipeline.author.reconstruct import flow
 
     paths = (
         flow.LAUNCHER,
@@ -129,7 +129,7 @@ def test_executable_helpers_survived_the_layout_move():
 
 
 def test_reconstruct_resolves_python_from_canonical_repo_root(monkeypatch):
-    from litereality_agent.pipeline.scene_init.reconstruct import flow
+    from litereality_agent.pipeline.author.reconstruct import flow
 
     monkeypatch.delenv("LITEREALITY_TRELLIS_PYTHON", raising=False)
     assert Path(flow.resolve_python(None)) == REPO / ".venv" / "bin" / "python"
@@ -166,7 +166,7 @@ def test_blender_render_worker_finds_the_camera_renderer():
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from litereality_agent.pipeline.scene_init.reconstruct.mesh_qc import chair_repair
+    from litereality_agent.pipeline.author.reconstruct.mesh_qc import chair_repair
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")

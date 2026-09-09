@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline import simulate
+from litereality_agent.pipeline.compile import simulate
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.result import StageStatus
 from litereality_agent.settings import LiteRealitySettings

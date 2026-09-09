@@ -117,7 +117,7 @@ markers = [
 line-length = 100
 target-version = "py310"
 extend-exclude = ["data", "run", "run-*", "output_objinit_test", "scans_uploaded", "weights",
-                   "src/litereality_agent/pipeline/scene_init/ingest/preprocessing/vendor",
+                   "src/litereality_agent/pipeline/measure/ingest/preprocessing/vendor",
                    "third_party", "legacy"]
 
 [tool.ruff.lint]

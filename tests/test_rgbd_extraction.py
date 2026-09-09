@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality import (
+from litereality_agent.pipeline.measure.ingest.preprocessing.vendor.litereality import (
     roomplan as ingest_utils,
 )
 

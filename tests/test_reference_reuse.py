@@ -17,7 +17,7 @@ import json
 
 import pytest
 
-from litereality_agent.pipeline.scene_init import flow
+from litereality_agent.pipeline.measure import flow
 
 CLUSTERS = {
     "chair_count": 5,

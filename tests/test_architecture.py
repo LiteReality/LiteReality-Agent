@@ -51,7 +51,7 @@ def test_only_supported_package_areas_exist():
 
 
 def test_ported_preprocessing_stays_behind_project_adapters():
-    preprocessing = PACKAGE / "pipeline" / "scene_init" / "ingest" / "preprocessing"
+    preprocessing = PACKAGE / "pipeline" / "measure" / "ingest" / "preprocessing"
     vendor = preprocessing / "vendor" / "litereality"
     assert {path.name for path in preprocessing.glob("*.py")} == {
         "__init__.py",
@@ -59,7 +59,7 @@ def test_ported_preprocessing_stays_behind_project_adapters():
         "scene_data.py",
     }
     assert not (
-        PACKAGE / "pipeline" / "scene_init" / "ingest" / "extract" / "lr_preprocessing"
+        PACKAGE / "pipeline" / "measure" / "ingest" / "extract" / "lr_preprocessing"
     ).exists()
 
     violations = []

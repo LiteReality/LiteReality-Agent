@@ -147,7 +147,7 @@ def test_cancelling_object_refinement_is_not_retried(room, tmp_path, monkeypatch
     from PIL import Image
 
     from litereality_agent.agent import providers
-    from litereality_agent.pipeline.realism_authoring.author import refine_objects
+    from litereality_agent.pipeline.author.realism import refine_objects
 
     name = "Chair0"
     obj_dir = room / "Objects" / "Procedural" / name
@@ -204,8 +204,8 @@ def test_deliberate_provider_stop_keeps_partial_success(room, tmp_path, monkeypa
 
 
 def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
+    from litereality_agent.pipeline.author import realism as author
     from litereality_agent.pipeline.context import RunContext
-    from litereality_agent.pipeline.realism_authoring import author
     from litereality_agent.settings import LiteRealitySettings
 
     settings = LiteRealitySettings(repo_root=tmp_path, output_root=tmp_path / "run")
@@ -237,8 +237,8 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
 
     assert result.ok
     assert [module for module, _, _ in calls] == [
-        "litereality_agent.pipeline.realism_authoring.author.entrypoint",
-        "litereality_agent.pipeline.realism_authoring.author.refine_objects",
-        "litereality_agent.pipeline.realism_authoring.author.materials",
-        "litereality_agent.pipeline.realism_authoring.author.quality",
+        "litereality_agent.pipeline.author.realism.entrypoint",
+        "litereality_agent.pipeline.author.realism.refine_objects",
+        "litereality_agent.pipeline.author.realism.materials",
+        "litereality_agent.pipeline.author.realism.quality",
     ]

@@ -18,8 +18,8 @@ from urllib.request import urlopen
 
 import pytest
 
+from litereality_agent.pipeline.author import live
 from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.realism_authoring import live
 from litereality_agent.room_ops import serve
 
 

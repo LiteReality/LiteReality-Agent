@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality.roomplan import (
+from litereality_agent.pipeline.measure.ingest.preprocessing.vendor.litereality.roomplan import (
     get_object_pose,
 )
 

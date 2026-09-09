@@ -14,9 +14,9 @@ from urllib.request import urlopen
 
 import pytest
 
+from litereality_agent.pipeline.compile import publish
+from litereality_agent.pipeline.compile.publish import WEB_GLB_NAME
 from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.room_qc import publish
-from litereality_agent.pipeline.room_qc.publish import WEB_GLB_NAME
 from litereality_agent.room_ops import walk
 
 

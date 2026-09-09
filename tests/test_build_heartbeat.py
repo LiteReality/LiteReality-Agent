@@ -47,7 +47,7 @@ def test_heartbeat_carries_what_a_long_phase_needs_to_show(trace):
 
 def test_beat_interval_keeps_gaps_under_the_viewers_quiet_threshold():
     """A heartbeat slower than LIVE_S would leave the viewer reporting quiet between beats."""
-    from litereality_agent.pipeline.scene_init import flow
+    from litereality_agent.pipeline.measure import flow
 
     source = flow._reconstruction_phase.__code__.co_consts
     interval = next(c for c in source if isinstance(c, float) and 0 < c <= LIVE_S)
