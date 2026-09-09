@@ -38,7 +38,7 @@ def to_mjcf(model: SimModel, out_dir: Path, *, drop_height: float = 0.0,
     ET.SubElement(world, "geom", name="floor", type="plane", size="8 8 0.1",
                   friction=f"{base_friction:.4g} 0.03 0.005", rgba="0.6 0.6 0.62 1")
 
-    by_name = {l.name: l for l in model.links}
+    by_name = {link.name: link for link in model.links}
     children: dict[str, list] = {}
     for j in model.joints:
         children.setdefault(j.parent, []).append(j)
@@ -67,7 +67,7 @@ def to_mjcf(model: SimModel, out_dir: Path, *, drop_height: float = 0.0,
 
 
 def _root_friction(model: SimModel) -> float:
-    return next((l.friction for l in model.links if l.name == model.root), 0.55)
+    return next((link.friction for link in model.links if link.name == model.root), 0.55)
 
 
 def _emit_children(parent_el, parent_name, children, by_name, asset, model):

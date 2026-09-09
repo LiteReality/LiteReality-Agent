@@ -27,7 +27,7 @@ def compile_object(glb: Path, *, run_checks: bool = True, decompose: bool = True
         to_urdf(model, out)
         row = {"object": model.name, "status": "ok", "links": len(model.links),
                "joints": len(model.joints), "mass_kg": model.total_mass,
-               "colliders": sum(len(l.colliders) for l in model.links)}
+               "colliders": sum(len(link.colliders) for link in model.links)}
         if run_checks:
             report = check(model, out)
             write_report(report, out)

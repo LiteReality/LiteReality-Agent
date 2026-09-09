@@ -271,7 +271,7 @@ def check(model, out_dir: Path, *, scenarios=("drop", "release", "tilt")) -> Rep
         held = to_mjcf(model, out_dir, drop_height=0.0, free=False, suffix="_release")
         report.scenarios["release"] = release_test(held, report)
     if "tilt" in scenarios:
-        root = next((l for l in model.links if l.name == model.root), model.links[0])
+        root = next((k for k in model.links if k.name == model.root), model.links[0])
         xml = to_mjcf(model, out_dir, drop_height=0.0, suffix="_tilt")
         report.scenarios["tilt"] = tilt_test(xml, report, root.friction)
     return report

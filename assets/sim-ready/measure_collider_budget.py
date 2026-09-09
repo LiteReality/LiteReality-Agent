@@ -87,7 +87,7 @@ def cost() -> list:
     for scan, obj in OBJECTS:
         d = simdir(scan, obj)
         model_json = json.loads((d / f"{obj}.physics.json").read_text())
-        n = sum(len(l["colliders"]) for l in model_json["links"])
+        n = sum(len(link["colliders"]) for link in model_json["links"])
         mo = mujoco.MjModel.from_xml_path(str(d / f"{obj}_drop.xml"))
         da = mujoco.MjData(mo)
         mujoco.mj_forward(mo, da)
@@ -98,7 +98,7 @@ def cost() -> list:
             mujoco.mj_step(mo, da)
             contacts.append(da.ncon)
         ms = (time.perf_counter() - t)
-        volumes = sorted(c["volume"] for l in model_json["links"] for c in l["colliders"])
+        volumes = sorted(c["volume"] for link in model_json["links"] for c in link["colliders"])
         total = sum(volumes) or 1.0
         slivers = [v for v in volumes if v < total * 0.005]
         out.append({"object": obj, "colliders": n, "mean_contacts": round(float(np.mean(contacts)), 1),
@@ -120,17 +120,20 @@ def plot(data: dict, costs: list, out: Path):
     a1.plot(x, [r["interior_kept"] * 100 for r in rows], "o-", color="#2f6f9f", lw=2)
     a1.axhspan(0, 2, color="#c0392b", alpha=.13)
     a1.text(5.5, 6, "solid block — the cupboard has no inside", fontsize=8.5, color="#8c2f24")
-    a1.set_xlabel("convex parts"); a1.set_ylabel("open interior kept (%)")
+    a1.set_xlabel("convex parts")
+    a1.set_ylabel("open interior kept (%)")
     a1.set_title(f"{data['object']} — real material is "
                  f"{data['material_fraction'] * 100:.0f}% of its hull", fontsize=10.5)
-    a1.grid(alpha=.25); a1.set_ylim(-3, 100)
+    a1.grid(alpha=.25)
+    a1.set_ylim(-3, 100)
 
     names = [c["object"] for c in costs]
     a2.bar(names, [c["ms_per_step"] for c in costs], color="#2f6f9f")
     for i, c in enumerate(costs):
         a2.text(i, c["ms_per_step"], f"  {c['colliders']} parts\n  {c['mean_contacts']:.0f} contacts",
                 ha="center", va="bottom", fontsize=7.5)
-    a2.set_ylabel("ms per solver step"); a2.set_ylim(0, max(c["ms_per_step"] for c in costs) * 1.7)
+    a2.set_ylabel("ms per solver step")
+    a2.set_ylim(0, max(c["ms_per_step"] for c in costs) * 1.7)
     a2.set_xticklabels(names, rotation=18, ha="right", fontsize=8.5)
     a2.set_title("Cost — part count is not what drives contact work", fontsize=10.5)
     a2.grid(axis="y", alpha=.25)
@@ -142,7 +145,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path(__file__).parent)
     args = ap.parse_args()
-    data, costs = sweep(), cost()
+    data = sweep()
+    costs = cost()
     (args.out / "budget.json").write_text(json.dumps({"sweep": data, "cost": costs}, indent=2) + "\n")
     plot(data, costs, args.out)
     for r in data["rows"]:

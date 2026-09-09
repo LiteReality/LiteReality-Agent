@@ -37,7 +37,7 @@ def main(argv=None) -> int:
 
     print(f"{model.name}: {len(model.links)} links, {len(model.joints)} joints, "
           f"{model.total_mass:.2f} kg, "
-          f"{sum(len(l.colliders) for l in model.links)} colliders -> {out}")
+          f"{sum(len(link.colliders) for link in model.links)} colliders -> {out}")
     for note in model.notes:
         print(f"  note: {note}")
     if args.action == "build":

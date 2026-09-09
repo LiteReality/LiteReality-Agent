@@ -21,7 +21,6 @@ Z-up; no exporter has to think about it again.
 from __future__ import annotations
 
 import json
-import math
 import struct
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -455,7 +454,7 @@ def build_model(glb: Path, out_dir: Path, *, category: str = "", decompose: bool
     model = SimModel(name=name, category=category, root="base_link", links=links, joints=joints,
                      bbox=[[round(float(v), 4) for v in bbox[0]],
                            [round(float(v), 4) for v in bbox[1]]],
-                     total_mass=round(sum(l.mass for l in links), 4), notes=notes)
+                     total_mass=round(sum(k.mass for k in links), 4), notes=notes)
     return model
 
 
@@ -509,7 +508,7 @@ def write_model(model: SimModel, out_dir: Path) -> Path:
 def load_model(path: Path) -> SimModel:
     d = json.loads(Path(path).read_text())
     d.pop("schema_version", None)
-    d["links"] = [Link(**{**l, "colliders": [Collider(**c) for c in l["colliders"]]})
-                  for l in d["links"]]
+    d["links"] = [Link(**{**row, "colliders": [Collider(**c) for c in row["colliders"]]})
+                  for row in d["links"]]
     d["joints"] = [Joint(**j) for j in d["joints"]]
     return SimModel(**d)
