@@ -85,6 +85,29 @@ CEILING_GAP = 0.30       # m below the ceiling and still counted as mounted on i
 FABRIC = {"skirting", "trunking", "conduit", "rail", "cornice", "coving", "dado", "architrave",
           "socket", "switch", "data_socket", "power_socket", "radiator", "pipe", "boxing",
           "shelf_standard", "curtain_rail", "picture_rail", "beam"}
+# FURNITURE THAT STANDS ON THE FLOOR AND STAYS THERE. A room's tables, worktops, counters and
+# cabinets are scenery: nobody pushes a desk across an office, and a simulator that lets them is
+# not more realistic, it is less. Left free they are also the multiplier on every other error in
+# the room — a cabinet ejected by a 5 mm authored overlap takes everything standing on it with it.
+#
+# The trigger is a real gap rather than a preference. `rests_on` is written by `group_fixture`, so
+# only the fixtures and props the AUTHOR added ever carry it; the furniture that came from the scan
+# is placed from the manifest and has neither `rests_on` nor `attached_to`. Office-Elliott's Table0
+# is 27.8 kg on a free joint for exactly that reason, while Table1 — the same kind of desk — is
+# static only by accident, because it happens to have a lift top and anything with a moving part
+# was already being pinned.
+#
+# CHAIRS AND STOOLS ARE DELIBERATELY NOT HERE. A chair is the one piece of furniture a room really
+# does move, it is what a robot has to get around, and freezing them would take the most useful
+# obstacle in the scene out of the physics.
+SCENERY = {"table", "desk", "worktop", "countertop", "counter", "bench", "storage", "cabinet",
+           "cupboard", "wardrobe", "sideboard", "dresser", "shelving", "bookcase", "sink",
+           "oven", "stove", "hob", "dishwasher", "refrigerator", "freezer", "washer", "dryer",
+           "bed", "sofa", "settee", "couch", "piano", "reception_desk"}
+# ...and only when it is actually standing on the floor. A "table" whose underside is a metre up is
+# a wall-mounted shelf that happens to be named one, and that is a different thing.
+SCENERY_FLOOR_GAP = 0.08
+
 # Materials whose NAME says they are see-through. glTF carries the pane as an ordinary opaque
 # texture — Blender's transmission does not survive the export — so a window arrives as a solid
 # painted panel and the room has no daylight in it. The name is the only surviving evidence that
@@ -131,6 +154,9 @@ DECOMP_TIMEOUT = 45.0    # seconds per body — see `_decompose`
 # across the room — and worse at LOW shake amplitudes than high ones, which is the signature of a
 # numerical artefact rather than a push.
 MIN_DECOMP_DIAGONAL = 0.30
+# How many parts a body may be collided piece-by-piece before it goes back to one decomposition of
+# the whole carcass. See the note where it is used.
+MAX_PARTWISE_COLLIDERS = 16
 # ...and a cap on how finely ANY body is cut. Twenty-four thin hulls on a 1.5 kg chair is a stack of
 # simultaneous contacts for the solver to satisfy at once, and it resolves them by launching it:
 # Kitchen's Chair0 travelled 175 m. Decomposition buys the ability to put a chair UNDER a table —
@@ -138,7 +164,14 @@ MIN_DECOMP_DIAGONAL = 0.30
 # with mass, because a heavy body absorbs contact noise that throws a light one across the room.
 def _part_budget(mesh, density: float) -> int:
     try:
-        mass = max(float(mesh.volume) * density, 0.05)
+        # OCCUPANCY VOLUME, NOT MESH VOLUME. `DENSITY` is kg per cubic metre of the BOUNDING BOX —
+        # it says so at its definition — and multiplying it by the mesh volume instead makes every
+        # hollow thing weightless. A 2.5 m shelving unit is a few thin boards, so it came out under
+        # 3 kg and was given four convex hulls for the whole carcass; one of them spanned 2.4 m and
+        # swallowed the shelves, and every prop standing on one started 200 mm inside it and was
+        # ejected three metres on the first step.
+        extents = np.asarray(mesh.extents, dtype=float)
+        mass = max(float(np.prod(np.maximum(extents, 0.02))) * density, 0.05)
     except Exception:                                   # noqa: BLE001
         mass = 1.0
     if mass < 3.0:
@@ -1129,8 +1162,15 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
         # A hanging is NOT static: it is a free body held by a weld that the shake can break.
         hanging = (category in HANGING and (rec.get("attached_to") or hung)
                    and not moving and category not in OPENING)
+        # Scenery: floor-standing furniture, pinned because that is what it is, not because it
+        # happened to be given a door. See `SCENERY`.
+        scenery = (not hanging and _in_category(category, SCENERY)
+                   and float(rec["center"][2]) - float(rec["size"][2]) / 2.0 - floor_z
+                   < SCENERY_FLOOR_GAP)
+        if scenery:
+            stats.setdefault("scenery", []).append(handle)
         static = (not hanging and (bool(rec.get("attached_to")) or bool(hung)
-                                   or category in OPENING or bool(moving)))
+                                   or category in OPENING or bool(moving) or scenery))
         body_attrs = {"name": handle, "pos": " ".join(f"{v:.4f}" for v in centre)}
         # A free object hangs off the world; anything fixed to the structure hangs off the ROOM, so
         # it travels with the walls when they move instead of being left behind in mid-air.
@@ -1197,14 +1237,28 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
                 stats["sidecar_colliders"] = stats.get("sidecar_colliders", 0) + len(link.colliders)
                 return
 
-            combined = trimesh.util.concatenate(shifted)
-            for i, col in enumerate(_convex_parts(combined, name_prefix, meshes, decompose,
-                                                  reuse_meshes, density)):
-                ET.SubElement(asset, "mesh", name=f"{name_prefix}_c{i}", file=col.name)
-                ET.SubElement(target, "geom", {"class": "collision", "type": "mesh",
-                                               "mesh": f"{name_prefix}_c{i}",
-                                               "density": f"{density:.1f}"})
-                stats["colliders"] += 1
+            # COLLIDE THE PARTS, NOT THEIR UNION. An authored fixture is built out of the shapes it
+            # is actually made of — a shelving unit is five boards, a desk is a top and four legs —
+            # and each of those is already convex or nearly so. Concatenating them first throws that
+            # away and hands CoACD a single carcass to guess at, which it fills: Office-Elliott's
+            # Shelving1 came back as one hull 2.4 m tall with the shelves solid inside it. Colliding
+            # each part on its own gives exact shelves for no decomposition at all.
+            #
+            # Only up to a point. A generated chair arrives as forty small parts, and forty geoms on
+            # one body is a stack of simultaneous contacts for the solver rather than a better
+            # shape, so a body with more parts than this keeps the single-carcass decomposition.
+            pieces = shifted if len(shifted) <= MAX_PARTWISE_COLLIDERS else [
+                trimesh.util.concatenate(shifted)]
+            index = 0
+            for part_no, piece in enumerate(pieces):
+                stem = name_prefix if len(pieces) == 1 else f"{name_prefix}_p{part_no}"
+                for col in _convex_parts(piece, stem, meshes, decompose, reuse_meshes, density):
+                    ET.SubElement(asset, "mesh", name=f"{name_prefix}_c{index}", file=col.name)
+                    ET.SubElement(target, "geom", {"class": "collision", "type": "mesh",
+                                                   "mesh": f"{name_prefix}_c{index}",
+                                                   "density": f"{density:.1f}"})
+                    index += 1
+                    stats["colliders"] += 1
 
         # MASS STATED EXPLICITLY. The object's own figure when it has one — occupancy density over
         # its bounding box, or a mass the recipe read off a label, split across its links by volume
