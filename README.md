@@ -134,7 +134,9 @@ uv run litereality run scans/<scan> --through seed
 uv run litereality stage author run/<scan> --force --polish --live
 ```
 
-`--polish` adds object refinement, materials, and a model-driven quality pass on top of authoring.
+`--polish` adds object refinement and materials on top of authoring. The model-driven quality
+pass is separate — add `--quality-pass` for it — because it is the longest agent pass on a run and
+nothing downstream reads its output.
 `--live` shows how everything is built in real time, alongside the agent's trace. With `--live` the
 viewer starts before the room exists and waits for it, so it works on a scene's first authoring
 run; it prints its url again once the first build lands.

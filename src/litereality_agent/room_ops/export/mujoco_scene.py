@@ -608,7 +608,14 @@ def _object_physics(room: Path, rec: dict, room_scene, node_names, placed_mesh, 
 
     source = rec.get("source_glb")
     if not source:
-        return None                     # authored in `Room.py` — it has no object package at all
+        # Authored straight into `Room.py` — a mug, a cable, a length of trunking — so there is no
+        # object package and never was one. That is expected, but it is NOT free: everything
+        # physical about this body is about to be invented from a category table and a CoACD run.
+        # It used to return here without recording anything, which made the difference invisible:
+        # an authored room reported an empty `no_sidecar` while more than half its colliders had
+        # been derived at export time, and the stage's warning is keyed on that list.
+        report.setdefault("authored_no_package", []).append(rec.get("handle") or "?")
+        return None
     name = Path(source).stem
     sim_dir = sim_assets.sidecar_dir(room, name)
     if sim_dir is None:
@@ -781,6 +788,9 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
     ET.SubElement(mujoco, "compiler", angle="radian", meshdir="meshes", texturedir="meshes",
                   autolimits="true")
     ET.SubElement(mujoco, "option", timestep="0.002", integrator="implicitfast")
+    # One user slot per actuator, so an authored joint can carry the velocity limit its recipe
+    # stated. MuJoCo rejects a `user` attribute outright unless the space for it is declared here.
+    ET.SubElement(mujoco, "size", nuser_actuator="1")
     # MuJoCo's offscreen framebuffer defaults to 640x480, and a Renderer larger than it raises
     # rather than downscaling. A room is worth looking at at more than VGA.
     visual = ET.SubElement(mujoco, "visual")
@@ -983,6 +993,7 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
              "skipped": [], "synthesised_lights": synthesised_lights}
     # A moving part overlaps the thing it moves within — that is what "fits" means, not a defect.
     excludes: list[tuple[str, str]] = []
+    actuated: list[tuple[str, float, float]] = []      # (joint, effort, velocity) from a sidecar
     placed: list[tuple[str, "np.ndarray", "np.ndarray", bool]] = []
     hangings: list[tuple[str, float]] = []
 
@@ -1307,7 +1318,8 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
                 pivot = physics.pivots[part_name]
                 spec = {"axis": physics.axes[part_name], "type": joint.type,
                         "min": joint.limit_lower, "max": joint.limit_upper,
-                        "damping": joint.damping, "friction": joint.friction}
+                        "damping": joint.damping, "friction": joint.friction,
+                        "effort": joint.effort, "velocity": joint.velocity}
             else:
                 raw = joints[part_name]
                 local_axis = list(raw["axis"])
@@ -1323,6 +1335,16 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
                           range=f"{spec['min']:.4f} {spec['max']:.4f}",
                           damping=f"{spec['damping']:.4g}",
                           frictionloss=f"{spec['friction']:.4g}", armature="0.002")
+            # A JOINT NOTHING CAN DRIVE IS SCENERY. The sidecar states an effort limit — 45 N·m to
+            # swing this door, 800 N to raise that desk — compiled from the part the recipe built.
+            # It was read for nothing: the export emitted the joint and dropped the number, so the
+            # only way to open a door was to push it with another body. An actuator per authored
+            # joint is what makes the difference between a room you can look at and one a policy
+            # can act in. Recorded only when the sidecar SAID the effort; a joint recovered from
+            # the raw extras carries no such statement and inventing one would be a guess.
+            if "effort" in spec:
+                actuated.append((f"{handle}_{part_name}", float(spec["effort"]),
+                                 float(spec.get("velocity") or 0.0)))
             if part_link is not None:
                 ET.SubElement(child, "inertial",
                               pos=" ".join(f"{v:.6f}" for v in (part_link.com - pivot)),
@@ -1385,7 +1407,13 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
         stats["hangings"] = [h for h, _d, _n in hangings]
 
     actuator = ET.SubElement(mujoco, "actuator")
-    for name in ("room_x", "room_y", "room_z"):
+    # `room_yaw` is driven on the same terms as the three slides. It was emitted as a joint but
+    # never given a servo, and `mujoco_shake` asks for `drive_room_yaw` by name — so the twist the
+    # joint exists for silently never happened, and the room was additionally left free to rotate
+    # about its vertical under whatever contact torque its contents applied. The gains carry over
+    # unchanged because the room's `diaginertia` about z is 50000, numerically equal to its mass,
+    # so kp=5e7 puts the rotational resonance at the same 5.0 Hz and kv damps it just as critically.
+    for name in ("room_x", "room_y", "room_z", "room_yaw"):
         # CRITICALLY DAMPED, AND STIFF ENOUGH TO STAY OUT OF THE WAY. The room is a 50 t body on a
         # position servo, which is a mass-spring: kp=2e7 put its natural frequency at 3.18 Hz and
         # kv=2e5 left it at a damping ratio of 0.10. The vertical drive runs at 1.93x the base
@@ -1397,6 +1425,28 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
         # kitchen 172 m. kv = 2*sqrt(kp*m) damps it critically so it tracks without ringing.
         ET.SubElement(actuator, "position", name=f"drive_{name}", joint=name,
                       kp="5e7", kv="3.16e6")
+
+    # ONE MOTOR PER AUTHORED JOINT, AT THE EFFORT THE ASSET STATED.
+    #
+    # A `motor` rather than a `position` servo, deliberately. A servo holds a setpoint, so emitting
+    # one would clamp every door shut and every drawer closed at ctrl=0 — the scene would stop
+    # behaving the way it does today and a door would no longer swing when the room is shaken. A
+    # motor applies exactly `ctrl` and nothing at rest, so the passive dynamics are bit-for-bit
+    # what they were before this existed, and the only change is that the joint can now be driven.
+    #
+    # `ctrlrange` is the effort the recipe compiled, symmetric because these joints open and close.
+    # A door leaf that its own build says needs 45 N·m cannot be driven at 450 by a policy that
+    # discovers doing so is cheaper than opening it properly.
+    for joint_name, effort, velocity in actuated:
+        motor = ET.SubElement(actuator, "motor", name=f"act_{joint_name}", joint=joint_name,
+                              gear="1", ctrllimited="true",
+                              ctrlrange=f"{-abs(effort):.4g} {abs(effort):.4g}")
+        if velocity:
+            # MuJoCo has no per-actuator velocity limit, so this cannot be enforced here. It is the
+            # asset's own statement about how fast the part may move and the only lossless place to
+            # keep it is on the element itself, where a controller can read it back.
+            motor.set("user", f"{velocity:.6g}")
+    stats["actuated_joints"] = [j for j, _e, _v in actuated]
 
     # A PICTURE DOES NOT FIGHT THE RAIL IT HANGS BESIDE. These frames are attached to WALLS, but
     # they are authored overlapping separate `PictureRail` fixtures at the same height — Picture1
@@ -1597,6 +1647,16 @@ def export(room: Path, out: Path | None = None, *, decompose: bool = True,
     xml = out / "scene.xml"
     ET.indent(mujoco, space="  ")
     xml.write_text(ET.tostring(mujoco, encoding="unicode"), encoding="utf-8")
+
+    # WHAT FRACTION OF THIS SCENE'S PHYSICS THE ASSETS ACTUALLY STATED. Every other number in the
+    # report counts what was emitted; this one is the only one that says how much of it was
+    # invented here. It has to be computed rather than inferred by a reader subtracting two fields,
+    # because the honest answer on an authored room is well under half and nothing else says so.
+    derived = int(stats["colliders"]) - int(stats.get("sidecar_colliders", 0))
+    stats["derived_colliders"] = max(0, derived)
+    stats["sidecar_coverage"] = (round(stats.get("sidecar_colliders", 0) / stats["colliders"], 3)
+                                 if stats["colliders"] else None)
+
     (out / "export_report.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
     return xml
 

@@ -1,5 +1,6 @@
 """Run Room.py authoring and its optional polish passes."""
 
+import json
 import shutil
 
 from litereality_agent.pipeline.context import RunContext
@@ -52,6 +53,24 @@ def run(context: RunContext, options: dict) -> StageResult:
     )
     if rc:
         return result
+
+    # A ROOM THAT RAN OUT OF STEPS IS NOT A FINISHED ROOM. The step budget lands the session
+    # gracefully and exits 0, which is right — hitting it means "time's up", not "this is broken",
+    # and the work so far is kept. But it exits 0 through the same path as a room the model
+    # considered done, so without this the two are indistinguishable from outside and a truncated
+    # room is reported as a completed stage.
+    try:
+        summary = json.loads(
+            (context.authored_room.parent / ".author_result.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        summary = {}
+    if summary.get("ended_early"):
+        result.warnings.append(
+            f"authoring stopped on {summary['ended_early']} after "
+            f"{summary.get('calls', '?')} tool-calls (budget "
+            f"{summary.get('step_budget', '?')}) — the room is as far as it got, not finished. "
+            f"Raise it with --author-steps."
+        )
 
     passes: list[tuple[str, str, list[object]]] = []
     if options.get("refine_objects"):

@@ -106,10 +106,24 @@ def run(context: RunContext, options: dict) -> StageResult:
     for key, note in (("no_sidecar", "no compiled physics"),
                       ("unreadable_sidecar", "unreadable physics sidecar"),
                       ("unplaceable", "physics could not be placed"),
-                      ("placement_rejected", "physics rejected as mis-placed")):
+                      ("placement_rejected", "physics rejected as mis-placed"),
+                      ("authored_no_package", "authored into Room.py, so no object package")):
         names = report.get(key) or []
         if names:
             warnings.append(f"{len(names)} object(s) with {note}: {', '.join(map(str, names[:6]))}")
+
+    # THE HEADLINE NUMBER, SAID WHETHER OR NOT ANYTHING FAILED. Every warning above fires on a
+    # named object going wrong; none of them fires on the ordinary case of an authored room whose
+    # fixtures never had a package to begin with, and that case is the majority of the colliders.
+    # A scene where most of the physics was invented at export time is a worse scene, and a run
+    # that does not say so is reporting a success it has not earned.
+    coverage = report.get("sidecar_coverage")
+    if coverage is not None and coverage < 1.0:
+        warnings.append(
+            f"{report.get('derived_colliders', 0)} of {report.get('colliders', 0)} colliders "
+            f"({(1 - coverage) * 100:.0f}%) were derived at export time, not read from a compiled "
+            f"sidecar — mass, friction and pivots for those came from a category table"
+        )
 
     if options.get("shake"):
         # The report is the run's stdout, which `run_module` tees into the log. A video is asked
@@ -124,6 +138,8 @@ def run(context: RunContext, options: dict) -> StageResult:
     details = {"scene": str(scene_dir(context, seed=seed) / "scene.xml"),
                "source": "seed" if seed else "authored",
                "from_sidecar": len(report.get("from_sidecar") or []),
+               "sidecar_coverage": report.get("sidecar_coverage"),
+               "derived_colliders": report.get("derived_colliders"),
                "bodies": {k: report.get(k) for k in ("structure", "free", "attached",
                                                      "articulated", "colliders")}}
     return StageResult("simulate", StageStatus.COMPLETED, details=details, warnings=warnings)
