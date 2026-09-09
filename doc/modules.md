@@ -50,5 +50,7 @@ LiteReality-Agent
 - **QC checks** — [`QC/`](QC): [collision check](QC/collision_check.md), [supporting relationship](QC/supporting_relationship.md).
 - **Agent tools** — [`Tools/`](Tools): one page per tool, named after the tool.
 - **Layout Agents** 
-- **Sim-Ready-Intergation**
+- **Sim-Ready-Intergation** — [`Sim-Ready-intergration/`](Sim-Ready-intergration):
+  [what an asset must carry](Sim-Ready-intergration/meta_data.md),
+  [the room as a MuJoCo scene](Sim-Ready-intergration/Mujoco.md).
 

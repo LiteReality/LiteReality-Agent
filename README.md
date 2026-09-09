@@ -139,6 +139,19 @@ uv run litereality stage author run/<scan> --force --polish --live
 viewer starts before the room exists and waits for it, so it works on a scene's first authoring
 run; it prints its url again once the first build lands.
 
+## Simulate it
+
+The finished room as a MuJoCo scene — bodies rather than one baked mesh, each with the mass,
+inertia, friction, colliders and joints its own generated asset was compiled and solver-gated with.
+
+```bash
+uv run litereality stage simulate run/<scan>            # -> realism_authoring/mujoco/scene.xml
+uv run litereality stage simulate run/<scan> --shake     # ...and measure what actually moves
+```
+
+[`doc/Sim-Ready-intergration/Mujoco.md`](doc/Sim-Ready-intergration/Mujoco.md) covers where each
+number comes from and what happens to an object that has no compiled physics.
+
 ## See the results
 
 ```bash
