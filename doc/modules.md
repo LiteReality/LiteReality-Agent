@@ -1,10 +1,6 @@
 # System modules
 
-These are the components of the pipeline that turns a real-world scan into a simulation-ready 3D
-environment. The ten below are a split for development purposes, not ten sequential steps — the
-system is one integrated, multi-stage loop that keeps checking itself, so that what comes out is a
-high-quality, reusable environment for robot training.
-
+LiteReality-Agent is an agentic system that turns a real-world scan into a simulation-ready 3D environment. The ten components below are split for development purposes. Note that these are not ten sequential parts of the pipeline, but ten connected modules that together form a system for building, visualizing, editing, and easily developing simulation-ready 3D environments.
 Every update should tie to exactly one module. If a change has no obvious home here, the map is
 wrong and should be fixed first.
 
