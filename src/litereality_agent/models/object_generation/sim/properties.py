@@ -208,39 +208,59 @@ def _inertia_from_geometry(mesh, mass: float):
     return np.diag(diag), centre, "bounding_box"
 
 
-def _coacd_worker(vertices, faces, budget, queue):
+def _coacd_worker(vertices, faces, budget, mode, queue):
     try:
         import coacd
         coacd.set_log_level("error")          # it logs a progress bar per split, to stdout
         parts = coacd.run_coacd(coacd.Mesh(vertices, faces),
-                                max_convex_hull=budget, preprocess_mode="off")
+                                max_convex_hull=budget, preprocess_mode=mode)
         queue.put([(np.asarray(v).tolist(), np.asarray(f).tolist()) for v, f in parts])
     except Exception:                                        # noqa: BLE001
         queue.put([])
 
 
 def _decompose(mesh, budget: int):
-    """Convex parts, or []. Never hangs.
+    """Convex parts, or []. Never hangs, and never dies with the caller.
 
-    CoACD does not fail on a near-planar mesh, it SPINS — a flat board once ran for over two hours
-    — so each call gets its own process and a deadline rather than an exception handler.
-    `preprocess_mode="off"` because the default voxel remesh inflates a part by about a third,
-    which lifts a shelf above where its own mesh ends and ejects whatever was resting on it.
+    TWO MODES, IN THIS ORDER, and the second one is not optional. `preprocess_mode="off"` is the
+    one worth having: the default voxel remesh inflates a part by about a third, which lifts a
+    shelf above where its own mesh ends and ejects whatever was resting on it. But CoACD does not
+    merely fail on a mesh it cannot handle with preprocessing off — it SEGFAULTS, and a cupboard
+    carcass is exactly the kind of mesh that does it. Without the voxelised fallback those links
+    fall all the way through to a single convex hull, which turns a cupboard into a solid block and
+    a drawer into a brick: the precise failure this function exists to prevent. A slightly inflated
+    decomposition is a far better collider than no decomposition at all.
+
+    Each attempt runs in its own process because neither failure mode is catchable in-process: a
+    segfault takes the interpreter with it, and a near-planar mesh makes CoACD spin rather than
+    raise — one flat board once ran for over two hours. The loop polls instead of blocking on the
+    timeout so a crash costs milliseconds rather than the full deadline, and reads the queue before
+    joining, because joining a process that has put a large object on a queue deadlocks.
     """
     import multiprocessing as mp
+    import queue as queue_mod
+    import time
 
-    ctx = mp.get_context("spawn")
-    queue = ctx.Queue()
-    proc = ctx.Process(target=_coacd_worker,
-                       args=(np.asarray(mesh.vertices), np.asarray(mesh.faces), budget, queue))
-    proc.start()
-    try:
-        parts = queue.get(timeout=DECOMP_TIMEOUT)
-    except Exception:                                        # noqa: BLE001 — Empty means it hung
-        parts = []
-    proc.terminate()
-    proc.join(5)
-    return parts
+    for mode in ("off", "auto"):
+        ctx = mp.get_context("spawn")
+        q = ctx.Queue()
+        proc = ctx.Process(target=_coacd_worker,
+                           args=(np.asarray(mesh.vertices), np.asarray(mesh.faces), budget,
+                                 mode, q))
+        proc.start()
+        parts, deadline = [], time.time() + DECOMP_TIMEOUT
+        while time.time() < deadline:
+            try:
+                parts = q.get(timeout=0.5)
+                break
+            except queue_mod.Empty:
+                if not proc.is_alive():           # segfaulted without putting anything
+                    break
+        proc.terminate()
+        proc.join(5)
+        if parts:
+            return parts
+    return []
 
 
 def _part_budget(mass: float) -> int:
