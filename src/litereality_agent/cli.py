@@ -127,6 +127,7 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
 def _simulate_options(args) -> dict:
     return {
         "shake": getattr(args, "shake", False),
+        "from_seed": getattr(args, "from_seed", False),
         "reuse_meshes": getattr(args, "reuse_meshes", False),
         "no_decompose": getattr(args, "no_decompose", False),
     }
@@ -141,6 +142,11 @@ def _add_simulate_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--reuse-meshes", action="store_true",
         help="keep the collider meshes already exported and only rewrite scene.xml",
+    )
+    parser.add_argument(
+        "--from-seed", action="store_true",
+        help="export the room straight out of scene_init instead of the authored one — the shell "
+             "plus the reconstructed objects, with no materials, fixtures or props",
     )
     parser.add_argument(
         "--no-decompose", action="store_true",

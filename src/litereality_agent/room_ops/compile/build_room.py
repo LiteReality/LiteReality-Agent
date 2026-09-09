@@ -274,10 +274,46 @@ def world_bbox(meshes):
 # ============================================================================
 # Assembly primitives (walls / openings / box-fit) — proven geometry
 # ============================================================================
-def thicken_walls(walls, room_center, target=WALL_THICK):
+def _floor_triangles(floors):
+    """World-space XY triangles of the floor plate, for deciding which side of a wall is inside."""
+    tris = []
+    for f in floors:
+        me = f.data
+        for poly in me.polygons:
+            vs = [(f.matrix_world @ me.vertices[i].co).xy for i in poly.vertices]
+            for k in range(1, len(vs) - 1):
+                tris.append((vs[0], vs[k], vs[k + 1]))
+    return tris
+
+
+def _on_floor(pt, tris):
+    for a, b, c in tris:
+        den = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
+        if abs(den) < 1e-12:
+            continue
+        u = ((b.y - c.y) * (pt.x - c.x) + (c.x - b.x) * (pt.y - c.y)) / den
+        v = ((c.y - a.y) * (pt.x - c.x) + (a.x - c.x) * (pt.y - c.y)) / den
+        if u >= -1e-6 and v >= -1e-6 and u + v <= 1.0 + 1e-6:
+            return True
+    return False
+
+
+def thicken_walls(walls, room_center, target=WALL_THICK, floor_tris=None):
     """Extrude each wall's OUTER face outward only, keeping the interior face
     where RoomPlan put it. Interior footprint is unchanged -> inside corners stay
-    clean; the added thickness/overlap goes to the outside, out of view."""
+    clean; the added thickness/overlap goes to the outside, out of view.
+
+    Which face is "outer" is decided by the FLOOR PLATE, not by the room centroid. The centroid
+    test is right for a convex room and wrong exactly where it matters: a wall in the concave notch
+    of an L-shaped plan sits on the far side of the centroid from its own interior, so the extrusion
+    goes inward and the wall grows 10 cm into the room. On tea_room that is Wall7 and Wall8, and it
+    swallows whatever is installed against them — the dishwasher the layout pass had just fitted
+    into that corner ends up 2 cm inside the wall, with the pass reporting the room clean because
+    the box it settled IS clear of the wall line it was given.
+
+    `floor_tris` is optional: without it this falls back to the centroid test, so a caller that has
+    no floor polygon behaves as before rather than failing.
+    """
     n = 0
     for o in walls:
         vs = o.data.vertices
@@ -297,7 +333,14 @@ def thicken_walls(walls, room_center, target=WALL_THICK):
         axis_local = Vector((0.0, 0.0, 0.0))
         axis_local[t] = 1.0
         n_world = (M3 @ axis_local).normalized()
-        outward_plus = n_world.dot(o.matrix_world.translation - room_center) >= 0
+        centre = o.matrix_world.translation
+        outward_plus = n_world.dot(centre - room_center) >= 0
+        if floor_tris:
+            probe = max(target, 0.05) * 2.0
+            plus_in = _on_floor((centre + n_world * probe).xy, floor_tris)
+            minus_in = _on_floor((centre - n_world * probe).xy, floor_tris)
+            if plus_in != minus_in:          # one side is the room; grow away from it
+                outward_plus = minus_in
         for v in vs:
             if outward_plus and v.co[t] > mid:
                 v.co[t] += add_local
@@ -505,7 +548,7 @@ class RoomScene:
         room_center = sum((o.matrix_world.translation for o in walls), Vector()) / max(
             len(walls), 1
         )
-        n_thick = thicken_walls(walls, room_center)
+        n_thick = thicken_walls(walls, room_center, floor_tris=_floor_triangles(floors))
         print(f"  thickened {n_thick} walls outward to ~{WALL_THICK} m")
 
         n_cut = sum(cut_opening(op, wall) for op, wall in mapping.items())

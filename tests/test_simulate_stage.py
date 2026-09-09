@@ -97,3 +97,44 @@ def test_the_shake_is_opt_in_because_it_is_a_measurement_and_costs_minutes(conte
     calls.clear()
     simulate.run(context, {"shake": True})
     assert calls[-1] == "litereality_agent.room_ops.export.mujoco_shake"
+
+
+def _seeded(context: RunContext) -> None:
+    """A scan that has been through `seed` but never authored."""
+    context.seed_room.mkdir(parents=True, exist_ok=True)
+    (context.seed_room / "Room.py").write_text("SHELL = {}\n")
+    preview = context.seed_room.parent / "room_preview"
+    preview.mkdir(parents=True, exist_ok=True)
+    (preview / "Room.glb").write_bytes(b"glTF")
+
+
+def test_from_seed_exports_the_unauthored_room(context, monkeypatch):
+    """Authoring adds materials, wall fixtures and clutter — appearance. The physical scene is
+    complete without it: the shell with its openings cut out, and every reconstructed object in its
+    measured box carrying the physics its own build compiled."""
+    _seeded(context)
+    seen: list[list] = []
+
+    def record(_context, module, args=(), *, log_name=None):
+        seen.append([str(a) for a in args])
+        out = simulate.scene_dir(context, seed=True)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "scene.xml").write_text("<mujoco/>")
+        (out / "export_report.json").write_text('{"from_sidecar": ["Table0"]}')
+        return 0, out / "log"
+
+    monkeypatch.setattr(simulate, "run_module", record)
+    result = simulate.run(context, {"from_seed": True})
+
+    assert result.status is StageStatus.COMPLETED
+    assert result.details["source"] == "seed"
+    assert str(context.seed_room) in seen[0]
+    # ...and it goes somewhere of its own, so an authored export is not overwritten by one that
+    # deliberately has no authoring in it.
+    assert result.details["scene"].endswith("mujoco_seed/scene.xml")
+
+
+def test_from_seed_asks_for_seed_rather_than_author_when_the_room_is_missing(context):
+    result = simulate.run(context, {"from_seed": True})
+    assert result.status is StageStatus.FAILED
+    assert "seed" in result.error and "author" not in result.error

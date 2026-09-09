@@ -13,6 +13,31 @@ uv run litereality stage simulate run/<scan> --shake  # ...and measure what move
 uv run litereality run <scan> --through simulate      # the whole pipeline, ending here
 ```
 
+**Without the authoring stage at all.** Authoring adds materials, wall fixtures and the small
+objects — appearance and clutter. The physical scene is complete without any of it: the shell with
+its openings cut out, and every reconstructed object in its measured box carrying the mass,
+friction, colliders and joints its own build compiled. `--from-seed` exports that room instead, out
+of `scene_init`, into `mujoco_seed/`:
+
+```bash
+uv run litereality stage simulate run/<scan> --from-seed
+```
+
+It is the fastest way to get a scan into a simulator, and the cleanest test of the objects
+themselves — nothing in the scene came from anywhere but the reconstruction. Measured over 5 s of
+gravity with nothing touching them, four scans exported this way:
+
+| room | bodies | free | articulated | mass | drift over 5 s |
+|---|---|---|---|---|---|
+| Office-Elliott | 15 | 5 | 4 | 172 kg | 91 mm |
+| fallside-kitchen | 24 | 4 | 9 | 313 kg | 7 mm |
+| fallside-office | 12 | 3 | 2 | 515 kg | 107 mm |
+| MIL-Meeting | 32 | 16 | 6 | 484 kg | 1234 mm |
+
+MIL-Meeting is the outlier and it is not an export fault: one chair was scanned 44 mm inside a
+window reveal, and a 3.6 kg body squeezed out of static geometry travels. That is authored (here,
+scanned) interpenetration, and it belongs upstream in the layout repair.
+
 Directly, without the pipeline:
 
 ```bash

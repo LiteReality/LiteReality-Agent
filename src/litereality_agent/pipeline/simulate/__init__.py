@@ -34,16 +34,38 @@ from litereality_agent.pipeline.result import StageResult, StageStatus
 from litereality_agent.pipeline.support import run_module
 
 
-def scene_dir(context: RunContext):
-    return context.authoring_root / "mujoco"
+def scene_dir(context: RunContext, *, seed: bool = False):
+    return context.scene_dir / "mujoco_seed" if seed else context.authoring_root / "mujoco"
+
+
+def source_room(context: RunContext, *, seed: bool = False):
+    """Which room to export.
+
+    The AUTHORED room by default. But authoring and simulation answer different questions, and a
+    room that has not been authored is still a complete physical scene: the shell with its openings
+    cut out, and every reconstructed object in its measured box carrying the mass, friction,
+    colliders and joints its own build compiled. What authoring adds is materials, wall fixtures and
+    the small objects — appearance and clutter — none of which a policy needs to be trained against.
+
+    So `--from-seed` exports the room straight out of `scene_init`, which is the fastest way to get
+    a scan into a simulator and the cleanest test of the objects themselves: nothing in the scene
+    came from anywhere but the reconstruction.
+    """
+    if seed:
+        return context.seed_room, context.seed_room.parent / "room_preview"
+    return context.authored_room, context.preview_dir
 
 
 def complete(context: RunContext) -> bool:
     return (scene_dir(context) / "scene.xml").is_file()
 
 
-def _report(context: RunContext) -> dict:
-    path = scene_dir(context) / "export_report.json"
+def _report_path(context: RunContext, seed: bool):
+    return scene_dir(context, seed=seed) / "export_report.json"
+
+
+def _report(context: RunContext, seed: bool = False) -> dict:
+    path = _report_path(context, seed)
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:                                        # noqa: BLE001 — no report, no summary
@@ -51,16 +73,18 @@ def _report(context: RunContext) -> dict:
 
 
 def run(context: RunContext, options: dict) -> StageResult:
-    room = context.authored_room
+    seed = bool(options.get("from_seed"))
+    room, preview = source_room(context, seed=seed)
     if not (room / "Room.py").is_file():
         return StageResult("simulate", StageStatus.FAILED,
-                           error=f"no authored room at {room} — run `author` first")
-    if not (context.preview_dir / "Room.glb").is_file():
+                           error=f"no room at {room} — run "
+                                 f"`{'seed' if seed else 'author'}` first")
+    if not (preview / "Room.glb").is_file():
         return StageResult("simulate", StageStatus.FAILED,
-                           error=f"no built room at {context.preview_dir / 'Room.glb'} — "
-                                 f"run `publish` first")
+                           error=f"no built room at {preview / 'Room.glb'} — "
+                                 f"run `{'seed' if seed else 'publish'}` first")
 
-    argv = ["--room", str(room), "--out", str(scene_dir(context))]
+    argv = ["--room", str(room), "--out", str(scene_dir(context, seed=seed))]
     # Decomposition is only reached for objects with NO physics sidecar, and it is the slowest
     # thing in the export by two orders of magnitude. Turning it off makes those objects collide as
     # their convex hulls — a table becomes a solid block — so it stays on and is opt-out.
@@ -69,13 +93,13 @@ def run(context: RunContext, options: dict) -> StageResult:
     if options.get("reuse_meshes"):
         argv.append("--reuse-meshes")
     rc, log = run_module(context, "litereality_agent.room_ops.export.mujoco_scene", argv,
-                         log_name="simulate_export")
-    if rc or not complete(context):
+                         log_name="simulate_export_seed" if seed else "simulate_export")
+    if rc or not (scene_dir(context, seed=seed) / "scene.xml").is_file():
         return StageResult("simulate", StageStatus.FAILED,
                            error=f"MuJoCo export failed; see {log}")
 
     warnings: list[str] = []
-    report = _report(context)
+    report = _report(context, seed)
     # An object that fell back to the category table is not a failure — every room built before the
     # sidecars existed did exactly that — but it IS the difference between a scene whose physics
     # came from its assets and one whose physics was invented here, so it is said out loud.
@@ -90,14 +114,15 @@ def run(context: RunContext, options: dict) -> StageResult:
     if options.get("shake"):
         # The report is the run's stdout, which `run_module` tees into the log. A video is asked
         # for because a number saying "Chair0 moved 0.42 m" is not reviewable and a clip is.
-        shake_argv = ["--scene", str(scene_dir(context) / "scene.xml"),
-                      "--video", str(scene_dir(context) / "shake.mp4"), "--cutaway"]
+        shake_argv = ["--scene", str(scene_dir(context, seed=seed) / "scene.xml"),
+                      "--video", str(scene_dir(context, seed=seed) / "shake.mp4"), "--cutaway"]
         shake_rc, shake_log = run_module(context, "litereality_agent.room_ops.export.mujoco_shake",
                                          shake_argv, log_name="simulate_shake")
         if shake_rc:
             warnings.append(f"shake exited {shake_rc}; see {shake_log}")
 
-    details = {"scene": str(scene_dir(context) / "scene.xml"),
+    details = {"scene": str(scene_dir(context, seed=seed) / "scene.xml"),
+               "source": "seed" if seed else "authored",
                "from_sidecar": len(report.get("from_sidecar") or []),
                "bodies": {k: report.get(k) for k in ("structure", "free", "attached",
                                                      "articulated", "colliders")}}
