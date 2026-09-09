@@ -19,7 +19,6 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
-
 import render_scene  # noqa: E402  — sibling
 
 
