@@ -2,9 +2,7 @@
   <a href="#"><img alt="LiteReality-Agent" src="assets/banner.png" width="100%"/></a>
 </h1>
 
-An open-source, end-to-end toolkit for reconstructing interactable indoor 3D scenes. Scan a room
-with the [LiteReality Scanner](https://apps.apple.com/gb/app/litereality/id6774158260); the agent
-turns it into a complete, graphics-ready scene with articulated assets.
+An open-source, end-to-end toolkit for turning real-world scans into simulation-ready 3D environments. Scan a room with the [LiteReality Scanner](https://apps.apple.com/gb/app/litereality/id6774158260); the agent reconstructs the scene, generates articulated assets, resolves layout and collisions, and prepares the environment for robotics simulation.
 
 <p>
   <a href="https://litereality.github.io/agent/" alt="Website">
