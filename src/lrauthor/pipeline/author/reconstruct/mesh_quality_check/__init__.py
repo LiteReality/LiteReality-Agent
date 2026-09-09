@@ -4,7 +4,7 @@ Runs per GLB during reconstruction, where the defects are TRELLIS artefacts — 
 fused on, background welded in, floating fragments, a squat blob. The repair is to make the
 asset again from a better reference image.
 
-Distinct from `pipeline/room_qc`, which gates the assembled `Room.py` at the very end and asks
+Distinct from `pipeline/compile/quality_check`, which gates the assembled `Room.py` at the very end and asks
 a different question — is this furniture in a sane PLACE — and repairs by nudging placements.
 Same kind of gate, different subject and different scale, hence the qualified names.
 

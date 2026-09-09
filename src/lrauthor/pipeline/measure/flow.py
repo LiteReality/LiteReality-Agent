@@ -30,7 +30,7 @@ from pathlib import Path
 from lrauthor import console, telemetry
 from lrauthor.pipeline.author.reconstruct import flow as reconstruct
 from lrauthor.pipeline.author.reconstruct.classify import classify_complexity
-from lrauthor.pipeline.author.reconstruct.mesh_qc import chair_repair
+from lrauthor.pipeline.author.reconstruct.mesh_quality_check import chair_repair
 from lrauthor.pipeline.measure import layout
 from lrauthor.pipeline.measure import paths as config
 from lrauthor.pipeline.measure.ingest import merge_boxes

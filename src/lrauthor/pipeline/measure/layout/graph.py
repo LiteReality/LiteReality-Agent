@@ -39,7 +39,7 @@ The remaining relations are structural or diagnostic:
 Support is decided by geometry, not by category: a laptop is supported by the desk because its
 underside meets the desk's top surface. Only the *exceptions* are category-driven — which
 categories can hang on a wall, which pairs may legitimately interpenetrate, which children belong
-to which parents — and those lists are carried over from ``pipeline/room_qc`` so a graph built here
+to which parents — and those lists are carried over from ``pipeline/compile/quality_check`` so a graph built here
 and a room checked upstream agree about what counts as wrong.
 """
 
@@ -62,7 +62,7 @@ __all__ = [
     "category_tokens", "in_category",
 ]
 
-# ── category knowledge (carried over from pipeline/room_qc so both agree) ────
+# ── category knowledge (carried over from pipeline/compile/quality_check so both agree) ────
 FURNITURE = {"table", "chair", "sofa", "storage", "television", "bed", "desk", "cabinet",
              "refrigerator", "stove", "oven", "sink", "toilet", "bathtub", "washer", "dishwasher",
              "fireplace", "stairs"}

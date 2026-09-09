@@ -32,7 +32,7 @@ check_glb("…/room_preview/Room.glb")   ->  [findings]
 ```
 
 ```bash
-python -m lrauthor.pipeline.room_qc.collision --glb <Room.glb>
+python -m lrauthor.pipeline.compile.quality_check.collision --glb <Room.glb>
 # exit 0 = pass, 1 = fail
 ```
 

@@ -70,8 +70,8 @@ LiteReality-Agent
 
 ## Where each module is written up
 
-- **QC checks** — [`qc/`](qc): [collision check](qc/collision_check.md),
-  [supporting relationship](qc/supporting_relationship.md).
+- **QC checks** — [`quality_check/`](quality_check): [collision check](quality_check/collision_check.md),
+  [supporting relationship](quality_check/supporting_relationship.md).
 - **Agent tools** — [`tools/`](tools): one page per tool, named after the tool.
   [fetch material](tools/fetch_material.md), [image selection](tools/image_selection.md),
   [rendering and compare](tools/rendering_and_compare.md), [3D generation](tools/threed_gen.md).

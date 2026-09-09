@@ -18,8 +18,8 @@ and any object failing validation is reverted and reported as unresolved rather 
 worse than it started. Writes back only the `center` arrays it changed, so the Room.py diff is
 reviewable line-by-line.
 
-    python -m lrauthor.pipeline.compile.qc.fix --room <room dir>            # dry run, prints the plan
-    python -m lrauthor.pipeline.compile.qc.fix --room <room dir> --apply    # edit Room.py in place
+    python -m lrauthor.pipeline.compile.quality_check.fix --room <room dir>            # dry run, prints the plan
+    python -m lrauthor.pipeline.compile.quality_check.fix --room <room dir> --apply    # edit Room.py in place
 """
 
 from __future__ import annotations

@@ -62,6 +62,6 @@ generate at once instead of queueing behind one card.
 
 ## Both routes are checked before the object enters the room
 
-`pipeline/scene_init/reconstruct/mesh_qc` checks each generated asset on its own — the room-level
-checks in [`../QC/`](../QC) only see objects that already passed. A bad asset is cheaper to reject
+`pipeline/scene_init/reconstruct/mesh_quality_check` checks each generated asset on its own — the room-level
+checks in [`../quality_check/`](../quality_check) only see objects that already passed. A bad asset is cheaper to reject
 here than to diagnose later as a room that looks wrong.

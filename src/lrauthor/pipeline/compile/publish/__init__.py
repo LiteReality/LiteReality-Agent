@@ -1,6 +1,6 @@
 """Compile and publish the final room, plus the review artifacts that go with it.
 
-Lives under `room_qc`, not `realism_authoring`, because publishing is not authoring: by the time
+Lives under `compile`, not `realism_authoring`, because publishing is not authoring: by the time
 this runs the room is finished being built. What it actually does is gate the room (collision
 correction, then the quality report) and then produce the things a human looks at to judge it.
 Running last in the flow is not the same as belonging to the flow that precedes it.
@@ -106,7 +106,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     warnings: list[str] = []
     collision_rc, collision_log = run_module(
         context,
-        "lrauthor.pipeline.compile.qc.correct",
+        "lrauthor.pipeline.compile.quality_check.correct",
         ["--room", context.authored_room, "--apply"],
         log_name="publish_collision",
     )
@@ -114,7 +114,7 @@ def run(context: RunContext, options: dict) -> StageResult:
         warnings.append(f"collision correction exited {collision_rc}; see {collision_log}")
     quality_rc, quality_log = run_module(
         context,
-        "lrauthor.pipeline.compile.qc.checks",
+        "lrauthor.pipeline.compile.quality_check.checks",
         ["--room", context.authored_room],
         log_name="publish_quality",
     )

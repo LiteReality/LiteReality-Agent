@@ -186,7 +186,7 @@ def opening_span(opening: dict[str, Any]) -> tuple[float, float]:
     ``room_ops/export/extract_shell.py:113`` writes the centre projection, and
     ``room_ops/compile/build_room.py:582`` reads it back as a centre, so the compiled room is
     correct. But ``Room.md`` describes it only as "distance along the wall from its start", and
-    ``pipeline/room_qc/checks.py:156`` takes that literally (``o0, o1 = offset, offset + width``),
+    ``pipeline/compile/quality_check/checks.py:156`` takes that literally (``o0, o1 = offset, offset + width``),
     which slides the tested interval half an opening-width toward the wall's end. Its
     ``fixture_over_opening`` check therefore compares against the wrong patch of wall, and any
     plot drawn the same way shows doors overhanging corners that they do not actually overhang.

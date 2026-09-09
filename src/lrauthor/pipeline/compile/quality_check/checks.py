@@ -10,7 +10,7 @@
 
 Overlap that is CORRECT is not reported: an undermount sink inside its counter, a built-in oven in
 the cabinet run, a chair tucked under a table, a socket on its trunking (see EXPECTED_CONTAINMENT /
-PASSTHROUGH). `pipeline/room_qc/fix.py` resolves what IS reported by nudging furniture apart.
+PASSTHROUGH). `pipeline/compile/quality_check/fix.py` resolves what IS reported by nudging furniture apart.
 
 Everything is pure arithmetic over AABBs, so it's fast, exact, and needs no LLM.
 
@@ -18,8 +18,8 @@ The box arithmetic itself lives with the tool that runs it on every agent turn
 (`agent/tools/check_collisions/source/geometry.py`). This module owns the report because the
 pipeline decides whether the room passes.
 
-    python -m lrauthor.pipeline.compile.qc.checks --room <room dir>
-    python -m lrauthor.pipeline.compile.qc.checks --layout <room_layout.json> --shell <Room.py>
+    python -m lrauthor.pipeline.compile.quality_check.checks --room <room dir>
+    python -m lrauthor.pipeline.compile.quality_check.checks --layout <room_layout.json> --shell <Room.py>
 """
 
 from __future__ import annotations

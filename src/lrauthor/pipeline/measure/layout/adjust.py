@@ -6,7 +6,7 @@ handed two boxes that already overlap either explodes them apart on the first st
 This stage produces a layout in which nothing overlaps that should not, so the room is
 **simulation-ready** before any agent or solver is involved.
 
-Two halves, in the same shape as ``pipeline/room_qc`` upstream:
+Two halves, in the same shape as ``pipeline/compile/quality_check`` upstream:
 
 ``check(shell)``
     read-only. Every violation the geometry admits — ``below_floor``, ``above_ceiling``,

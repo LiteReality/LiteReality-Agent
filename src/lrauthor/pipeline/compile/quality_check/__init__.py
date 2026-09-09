@@ -3,7 +3,7 @@
 This is the pipeline's final gate. It checks the authored `Room.py` and its compiled `Room.glb`.
 Repairs adjust object placement but never change an object.
 
-Distinct from `scene_init/reconstruct/mesh_qc`, which gates each generated asset as it is made
+Distinct from `scene_init/reconstruct/mesh_quality_check`, which gates each generated asset as it is made
 and asks whether the MESH is usable. Same kind of gate, different subject and scale.
 
     checks.py   report the violations (no writes)

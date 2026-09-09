@@ -99,8 +99,8 @@ composition boundary.
 3. It renders rooms and exports assets.
 4. It serves the walkable viewer.
 
-Quality control has two scopes. `pipeline/scene_init/reconstruct/mesh_qc` checks each generated
-asset before it enters the room. `pipeline/room_qc` checks the assembled room and corrects object
+Quality control has two scopes. `pipeline/scene_init/reconstruct/mesh_quality_check` checks each generated
+asset before it enters the room. `pipeline/compile/quality_check` checks the assembled room and corrects object
 placement. The collision tool keeps its reusable geometry code under `agent/tools`, while the
 pipeline decides what to do with each result.
 

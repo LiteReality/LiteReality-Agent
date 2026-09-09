@@ -3,7 +3,7 @@
 fragments, bad aspect, and squat-blob chairs.
 
 This is the MESH-level gate, run per generated asset during reconstruction. Not to be
-confused with `pipeline/room_qc`, which gates the assembled `Room.py` at the end: this
+confused with `pipeline/compile/quality_check`, which gates the assembled `Room.py` at the end: this
 one asks "is this chair a usable mesh", that one asks "is this furniture in a sane place".
 `chair_repair.py` next door acts on what this reports.
 
@@ -12,9 +12,9 @@ Ported from the studio pipeline's qa/glb_geometry_qa.py. The per-mesh checks
 TRELLIS chair GLBs under trellis/out/<scan>/chairs/*.glb (TRELLIS is the chair path
 and the usual source of bad geometry), runs the checks, and writes a report.
 
-    python -m lrauthor.pipeline.author.reconstruct.mesh_qc.checks
-    python -m ...mesh_qc.checks --scan tea_room
-    python -m ...mesh_qc.checks --glb path/to/x.glb     # check arbitrary GLB(s)
+    python -m lrauthor.pipeline.author.reconstruct.mesh_quality_check.checks
+    python -m ...mesh_quality_check.checks --scan tea_room
+    python -m ...mesh_quality_check.checks --glb path/to/x.glb     # check arbitrary GLB(s)
 
 GLBs are assumed glTF Y-up (TRELLIS output), so "up" is the Y extent.
 """

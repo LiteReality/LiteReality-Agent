@@ -1,7 +1,7 @@
 # Object generation
 
 For objects the complexity router
-([`classify_complexity.py`](../../pipeline/scene_init/reconstruct/classify/classify_complexity.py))
+([`classify_complexity.py`](../../pipeline/author/reconstruct/classify/classify_complexity.py))
 sends to the **procedural** path (simple/regular geometry — tables, storage,
 appliances, TVs, sinks), build them in Blender from primitives + PBR via the
 `image-to-articulated-glb` agent — and make them **articulate correctly**.

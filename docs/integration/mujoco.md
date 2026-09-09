@@ -157,7 +157,7 @@ telling you something true about the room.
 ## Related
 
 - [`metadata.md`](metadata.md) — what an asset has to carry to be sim-ready.
-- [`QC/supporting_relationship.md`](../QC/supporting_relationship.md) — how `rests_on` /
+- [`QC/supporting_relationship.md`](../quality_check/supporting_relationship.md) — how `rests_on` /
   `attached_to` are checked.
-- [`QC/collision_check.md`](../QC/collision_check.md) — nothing may interpenetrate before it is
+- [`QC/collision_check.md`](../quality_check/collision_check.md) — nothing may interpenetrate before it is
   simulated.

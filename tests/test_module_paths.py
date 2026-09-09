@@ -166,7 +166,7 @@ def test_blender_render_worker_finds_the_camera_renderer():
 def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from lrauthor.pipeline.author.reconstruct.mesh_qc import chair_repair
+    from lrauthor.pipeline.author.reconstruct.mesh_quality_check import chair_repair
 
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")
