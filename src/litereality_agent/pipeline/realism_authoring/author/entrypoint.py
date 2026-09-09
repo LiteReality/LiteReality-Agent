@@ -41,7 +41,12 @@ def main() -> None:
         default=int(os.environ.get("AUTHOR_STEP_RESERVE", "15")),
         help="steps reserved for final edits after self-check tools switch off",
     )
-    parser.add_argument("--profile", default="base", choices=list(PROFILES))
+    # `simulation` is the default because it is the brief that produces a room worth
+    # judging: lights that actually emit, objects on the surfaces, and every added object
+    # grouped with `rests_on`/`attached_to` so a physics engine can read it. `base` stops
+    # after shell + materials + wall fixtures, which is why rooms authored with it came
+    # back with three empty tables and no light datablocks.
+    parser.add_argument("--profile", default="simulation", choices=list(PROFILES))
     parser.add_argument(
         "--provider",
         default=None,

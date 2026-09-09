@@ -326,8 +326,14 @@ good spread of frames before job 4, and again while you work through it.
 TOOLS — use them, they are not decoration:
 - `fetch_material(query, name, color_hex, pattern_strength)` — real Poly Haven PBR (diffuse +
   roughness + normal) LAB-recoloured to your measured colour, saved into `materials/` +
-  `textures.json` with a wiring snippet. Prefer it over flat colour for any patterned surface. The
-  code-native alternative for carpet/fabric/plaster/tile/brick/wood:
+  `textures.json` with a wiring snippet.
+  CALL IT. Every surface with any visible texture — carpet, fabric, wood, tile, brick, plaster
+  grain, painted blockwork — gets a fetched PBR set, not a flat RGB and not a shell command that
+  writes one. Only genuinely flat modern paint may stay a plain colour, and you must be able to
+  say WHY from the photograph. This is a tool call: it downloads real captured maps and returns
+  the three paths plus the code to wire them. You cannot do it with `sed`, and a room whose
+  surfaces are all flat colours is the single biggest gap between this render and the photo.
+  The code-native alternative, for procedural weave/grain only:
   `from litereality_agent.room_ops.procedural_materials import make`.
 - `render(target)` — render `Room.py` for 'room' or a wall, paired with the real photo. READ the
   returned PNG with your own eyes and correct what is wrong. Render after LIGHT, and again after
