@@ -330,14 +330,56 @@ def parent_keep_world(child, parent):
 # ----------------------------------------------------------- articulation
 
 
-def set_articulation(ob, joint="prismatic", axis=(0, -1, 0), limit_min=0.0, limit_max=0.4):
+def set_articulation(ob, joint="prismatic", axis=(0, -1, 0), limit_min=0.0, limit_max=0.4,
+                     origin=None, damping=None, friction=None, effort=None, velocity=None):
     """Tag a movable part; exported as glTF node extras (export_extras=True).
     prismatic: axis = slide direction, limits in meters.
-    revolute:  axis = hinge axis, limits in radians."""
+    revolute:  axis = hinge axis, limits in radians.
+
+    `origin` STATES the pivot in build-frame world coordinates. It is optional only because the
+    build already puts a moving part's origin on its hinge line (see join_parts), so the pivot can
+    be recovered from the node transform — but recovered is not the same as stated, and every
+    consumer that has had to recover it has had to guess. Pass it when you know it, which is
+    always: it is the same number handed to join_parts().
+
+    `damping` / `friction` / `effort` / `velocity` describe how the joint MOVES. Leave them None
+    and the sim compiler fills in defaults for the joint type; set them when the object is
+    genuinely different (a soft-close drawer, a heavy fire door).
+    """
     ob["articulation_type"] = joint
     ob["articulation_axis"] = list(axis)
     ob["limit_min"] = float(limit_min)
     ob["limit_max"] = float(limit_max)
+    if origin is not None:
+        ob["joint_origin"] = [float(v) for v in origin]
+    for key, value in (("joint_damping", damping), ("joint_friction", friction),
+                       ("joint_effort", effort), ("joint_velocity", velocity)):
+        if value is not None:
+            ob[key] = float(value)
+
+
+def set_physics(ob, mass=None, density=None, friction=None, restitution=None):
+    """State what a part is made of. Everything left None is derived from the mesh later.
+
+    `mass` (kg) is the part on its own; `density` (kg/m^3 of its own mesh volume) is the
+    alternative when the shape is known but the weight is not. Give one or neither, never both.
+    `friction` is the sliding coefficient and `restitution` the bounce — the second is carried for
+    Isaac and Bullet and ignored by MuJoCo, which has no such parameter.
+
+    Author these when the reference actually tells you something: a cast-iron radiator is not the
+    same object as a pressed-steel one, and no density table keyed on the word "radiator" can know
+    which one is in the photograph.
+    """
+    for key, value in (("mass", mass), ("density", density),
+                       ("friction", friction), ("restitution", restitution)):
+        if value is not None:
+            ob[key] = float(value)
+
+
+def set_object_mass(ob, mass):
+    """State the WHOLE object's mass on any one of its parts. Stops the sim compiler deriving a
+    total from occupancy density and splits this across the links by volume instead."""
+    ob["object_mass"] = float(mass)
 
 
 def _schedule(n, open_frames, stagger, hold, close_stagger):

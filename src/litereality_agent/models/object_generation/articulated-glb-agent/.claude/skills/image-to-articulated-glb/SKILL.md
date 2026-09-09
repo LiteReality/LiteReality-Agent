@@ -78,8 +78,22 @@ lib); step 6 bundles it into the self-contained `object.py` deliverable. Convent
 - Build drawers as real open-top boxes (front + bottom + sides + back), not a
   single slab — they must look right when pulled out.
 - Tag every movable part with `set_articulation(ob, 'prismatic'|'revolute',
-  axis, limit_min, limit_max)` → exported as glTF node `extras` for
-  simulators.
+  axis, limit_min, limit_max, origin=<hinge point>)` → exported as glTF node
+  `extras` for simulators. **Pass `origin` for every revolute joint** — it is the
+  same point you already handed to `join_parts()`, and without it every consumer
+  has to re-derive the pivot from the mesh and guess.
+- State the physics you actually know, and only that:
+  - `set_physics(ob, mass=…)` when the reference tells you the weight, or
+    `set_physics(ob, density=…)` (kg/m³ of that part's own volume) when the
+    material is obvious but the weight is not. Never both.
+  - `set_physics(ob, friction=…, restitution=…)` for a surface that is clearly
+    not ordinary — glass, rubber feet, a felt pad. Leave them out and a default
+    is keyed off the material NAME, so name materials honestly (`Brushed_Steel`,
+    `Oak_Veneer`, `Glazing`) and most of this comes for free.
+  - `set_object_mass(ob, kg)` on any one part when you know what the WHOLE object
+    weighs. That stops the compiler deriving a total from category density.
+  Guessing is worse than silence here: an unstated value is derived from the mesh
+  and the category, and those defaults are calibrated. A wrong stated value is not.
 - Animate with `animate_prismatic()` / `animate_revolute()` — staggered
   open-then-close clips, one action per part (one glTF animation per part).
 - Materials: `make_pbr_material()` wires diffuse(+optional tint) / roughness
@@ -158,6 +172,23 @@ body, and (advisory) parts don't grossly interpenetrate or swing through the bod
   real interpenetration; they don't block delivery but usually indicate sloppy
   geometry.
 Do not emit `object.py` or say DONE until `probe_glb.py` exits 0 (no `[hard]`).
+
+### 5b-ii. Physics gate (does it hold together in a solver?)
+```bash
+python3 -m litereality_agent.models.object_generation.sim check <out.glb>
+```
+Compiles the object's mass, inertia and convex colliders, exports the URDF and
+MJCF, then runs three scenarios on the object ALONE — drop it just above a floor,
+open each joint one at a time, and lean gravity over until it slides. This catches
+what a render and a probe cannot: a part that was never really attached, colliders
+that start interpenetrating, an inertia the solver refuses, a joint whose axis or
+origin drives its part through its own carcass.
+- **`HARD`** = fix and rebuild. `joint_self_collision` and `drop_came_apart` are
+  the two that mean the build is wrong rather than merely unusual.
+- **`SOFT`** = read it. `sibling_sweep` (two leaves that cannot both be open) is
+  usually a real mechanism, not a defect — a dishwasher rack does slide through
+  the space its closed door occupies, and no joint format can record that
+  dependency.
 
 ### 5c. Completeness check (does it MATCH the reference?)
 ```bash
