@@ -665,6 +665,19 @@ def summarize(results: list[dict]) -> None:
         openings = r.get("openings", [])
         ok_op = sum(1 for o in openings if o["status"] == "ok")
         print(f"  openings:      {len(openings)} doors/windows ({ok_op} references ok)")
+
+        # A REFERENCE THAT FAILED IS NOT A SMALLER NUMBER, IT IS A DIFFERENT PIPELINE. On the
+        # fallback path the object is built from the raw evidence sheet instead of a clean render,
+        # so the geometry is measurably worse — and the only thing that said so was `0 references
+        # ok`, which reads as a count rather than as an error. A missing API key silently degraded
+        # every object in the room and the run still reported success.
+        failed = [o for o in (list(r["objects"]) + list(openings)) if o["status"] != "ok"]
+        if failed:
+            reasons = {o.get("error") or o["status"] for o in failed}
+            print(f"  ⚠  DEGRADED:   {len(failed)} of {n_obj + len(openings)} references fell back "
+                  f"to the raw evidence sheet — these objects are built from worse input")
+            for reason in sorted(reasons)[:3]:
+                print(f"                 {reason}")
         if "routing" in r:
             print(
                 f"  routing:       {r['routing']['procedural']} procedural, {r['routing']['trellis']} trellis"

@@ -20,6 +20,7 @@ current directory is inside a package. The explicit spelling still works and sti
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
@@ -414,6 +415,16 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
               flush=True)
         tr.think(f"[restored checkpoint] {broken}")
         broken = room_compiles(room)
+    # WHETHER THIS ROOM WAS FINISHED OR MERELY STOPPED. A budget landing is graceful and exits 0,
+    # so the stage above could not tell it apart from a room the model considered done — a
+    # half-authored room reported as a completed stage. The distinction is only knowable here, so
+    # it is written down rather than left in the log for someone to notice.
+    try:
+        (room.parent / ".author_result.json").write_text(json.dumps({
+            "ended_early": ended_early, "calls": calls, "step_budget": step_budget,
+        }), encoding="utf-8")
+    except OSError:
+        pass                                    # a summary that cannot be written is not fatal
     tr.end(calls=calls, cost_usd=cost, summary=result_text)
     print(f"\n== done {dt}s | calls={calls} {counts} | cost=${cost} ==\n", flush=True)
     if tr.ok:

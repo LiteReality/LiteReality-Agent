@@ -38,7 +38,19 @@ YUP_TO_ZUP = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
 # what gives a drawer front a believable mass of its own.
 OCCUPANCY_DENSITY = {
     "default": 45.0,
-    "chair": 14.0, "stool": 14.0, "table": 20.0, "desk": 22.0,
+    # 14.0 put a task chair at 7.2 kg and, after the room's fit rescaled it, 4.9 kg on the floor —
+    # against 12-15 kg for the real thing. Everything downstream inherits that: a body at a third
+    # of its weight takes a third of the push to send it across the room, which reads as the
+    # simulation being unstable when it is the mass that is wrong. Measured against real furniture
+    # over its own bounding box, a chair is 23-27 kg/m^3 whatever kind it is —
+    #   task chair, castors + gas strut   0.49 m^3   13 kg -> 26.8
+    #   cantilever meeting chair          0.23 m^3  5.5 kg -> 23.5
+    #   wooden dining chair               0.21 m^3  5.0 kg -> 23.4
+    # so one number serves them all, which is just as well: the category that reaches here is a
+    # bare "chair" with no statement of which sort it is. A stool is the exception and needs its
+    # own, because it is small enough that its fixed frame dominates its enclosed volume (0.12 m^3,
+    # 5 kg -> 41.7).
+    "chair": 25.0, "stool": 40.0, "table": 20.0, "desk": 22.0,
     "storage": 55.0, "cabinet": 55.0, "wardrobe": 50.0, "shelf": 45.0,
     "bed": 35.0, "sofa": 30.0, "refrigerator": 110.0, "dishwasher": 120.0,
     "oven": 120.0, "washer": 150.0, "radiator": 160.0,

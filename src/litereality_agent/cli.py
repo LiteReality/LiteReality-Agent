@@ -105,23 +105,47 @@ def _require_scene_package(target: str, context: RunContext, stage: str) -> None
 
 
 def _author_options(args) -> dict:
+    # `--polish` deliberately does NOT include the model-driven quality pass. Refinement and
+    # materials each produce something the room did not have before; QC re-examines what the
+    # authoring pass already rendered and compared, so it is the longest agent pass on the run for
+    # the smallest marginal change — and nothing downstream reads its output. It stays available
+    # as `--quality-pass` for a room being prepared to be looked at rather than simulated.
     polish = getattr(args, "polish", False)
-    return {
+    opts = {
         "refine_objects": polish or getattr(args, "refine_objects", False),
         "materials": polish or getattr(args, "materials", False),
-        "quality_pass": polish or getattr(args, "quality_pass", False),
+        "quality_pass": getattr(args, "quality_pass", False),
     }
+    steps = getattr(args, "author_steps", None)
+    if steps:
+        opts["step_budget"] = steps
+    return opts
 
 
 def _add_author_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--polish",
         action="store_true",
-        help="run object refinement, materials, and model-driven QC after authoring",
+        help="run object refinement and materials after authoring "
+             "(add --quality-pass for the model-driven QC pass as well)",
     )
     parser.add_argument("--refine-objects", action="store_true")
     parser.add_argument("--materials", action="store_true")
-    parser.add_argument("--quality-pass", action="store_true")
+    parser.add_argument(
+        "--quality-pass",
+        action="store_true",
+        help="model-driven QC pass — not included in --polish",
+    )
+    # Exposed for SHORT RUNS, not lowered as a default. Authoring spends its opening steps reading
+    # the capture and measuring surfaces before it edits anything, so a small budget does not give
+    # a rougher room, it gives an unfinished one — on Office-Elliott the first edit landed at step
+    # 19 and the walls were not squared up until the sixties. A truncated run now says so in the
+    # stage summary, which is what makes a low number safe to ask for.
+    parser.add_argument(
+        "--author-steps", type=int, default=None, metavar="N",
+        help="tool-call budget for the authoring session (default 100); "
+             "a low value returns an unfinished room and says so",
+    )
 
 
 def _simulate_options(args) -> dict:

@@ -416,11 +416,30 @@ def main() -> int:
                  env=("LR_REFINE_PROVIDER", "claude", "other roles can stay on codex"))
 
     if "providers" in wanted:
-        print("── hosted models (OpenAI images · Claude reasoning) ──")
+        # CHECK THE PROVIDER THAT IS ACTUALLY SELECTED. This asked for an OpenAI key unconditionally,
+        # so a correctly configured Gemini setup failed sanity while the run itself would have been
+        # fine — and, worse, an OpenAI key present alongside `LR_IMAGE_PROVIDER=gemini` passed here
+        # and then failed on a missing Gemini key at the first object.
+        provider = (os.environ.get("LR_IMAGE_PROVIDER") or "openai").strip().lower()
+        model = os.environ.get("LR_OPENAI_IMAGE_MODEL") or "gpt-image-2"
+        if provider not in ("openai", "gemini"):
+            provider = "gemini" if model.lower().startswith("gemini") else "openai"
+        print(f"── hosted models ({provider} images · Claude reasoning) ──")
+
+        if provider == "gemini":
+            if os.environ.get("GEMINI_API_KEY", ""):
+                ok(f"GEMINI_API_KEY set (image provider is gemini, "
+                   f"{os.environ.get('LR_GEMINI_IMAGE_MODEL') or 'gemini-2.5-flash-image'})")
+            else:
+                fail("LR_IMAGE_PROVIDER=gemini but GEMINI_API_KEY is unset — every reference "
+                     "image will fall back to the raw evidence sheet.",
+                     env=("GEMINI_API_KEY", "<your-gemini-key>",
+                          "create at https://aistudio.google.com/apikey"))
         key = os.environ.get("OPENAI_API_KEY", "")
-        if not key:
-            fail("OPENAI_API_KEY unset — reference image-gen "
-                 f"({os.environ.get('LR_OPENAI_IMAGE_MODEL') or 'gpt-image-2'}) will fail.",
+        if provider != "openai":
+            ok("OPENAI_API_KEY not required — images come from gemini")
+        elif not key:
+            fail(f"OPENAI_API_KEY unset — reference image-gen ({model}) will fail.",
                  env=("OPENAI_API_KEY", "sk-<your-openai-key>", "create at https://platform.openai.com/api-keys"))
         else:
             try:

@@ -85,7 +85,12 @@ class LiteRealitySettings(BaseSettings):
     )
 
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    gemini_api_key: SecretStr | None = Field(default=None, validation_alias="GEMINI_API_KEY")
     anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    # Which backend generates reference images. `models.env` documents it and `image_gen` reads it
+    # off the environment, but nothing carried it from `.env` INTO the subprocess that does the
+    # generating — so the documented Gemini path failed on a missing OpenAI key and fell back.
+    image_provider: str | None = Field(default=None, validation_alias="LR_IMAGE_PROVIDER")
     # Modal is the default execution runtime, so the app names carry the deployed defaults and
     # MODAL_PROFILE alone selects hosted execution. Override these only when a workspace deploys
     # the apps under different names.
@@ -216,8 +221,10 @@ class LiteRealitySettings(BaseSettings):
             "MODAL_DINO_FUNCTION": self.modal_dino_function,
             "MODAL_ENVIRONMENT": self.modal_environment,
         }
+        values["LR_IMAGE_PROVIDER"] = self.image_provider
         secrets = {
             "OPENAI_API_KEY": self.openai_api_key,
+            "GEMINI_API_KEY": self.gemini_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             # Exported so `modal deploy` and the model subprocesses authenticate from `.env`
             # without a ~/.modal.toml on the machine.

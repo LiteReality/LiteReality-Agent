@@ -127,6 +127,20 @@ a table is a solid block — a chair tucked under it would be launched on the fi
 would be a filled cupboard. Every concave body is therefore several convex pieces, and the original
 mesh is kept as a visual-only geom.
 
+### Driving it
+
+Every joint that came from a sidecar also gets an actuator, at the effort the asset itself stated —
+45 N·m for that door leaf, 800 N for that desk lift. Without them the articulation is scenery: the
+only way to open a door is to push it with another body, and a limit the recipe compiled has no
+effect on anything. They are `motor` elements rather than position servos on purpose. A servo holds
+a setpoint, so it would clamp every door shut at `ctrl=0` and a hung door would stop swinging when
+the room was shaken; a motor applies exactly `ctrl` and nothing at rest, so the passive scene is
+unchanged and the joint is merely now drivable. The velocity limit the sidecar carries has nowhere
+to live in MJCF, so it is kept on the actuator's `user` field for a controller to read back.
+
+A joint recovered from the raw articulation extras gets no actuator, because nothing said what its
+effort should be and inventing one is a guess. `export_report.json` lists what was actuated.
+
 The room itself is a body on three slide joints and a yaw hinge, driven by stiff position servos.
 That is what makes `--shake` an earthquake rather than a change in the direction of gravity: the
 floor really accelerates under the furniture, and a hung door really swings because its frame is
