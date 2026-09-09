@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.result import StageStatus
-from litereality_agent.pipeline.room_qc import publish
+from lrauthor.pipeline.compile import publish
+from lrauthor.pipeline.context import RunContext
+from lrauthor.pipeline.result import StageStatus
 
 
 @pytest.fixture
@@ -66,12 +66,12 @@ class Recorder:
 @pytest.fixture
 def stub(monkeypatch):
     """No Blender anywhere: the bake is a no-op, and the compressor fails the test if reached."""
-    monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", lambda *a, **k: 0)
+    monkeypatch.setattr("lrauthor.room_ops.api.bake_room", lambda *a, **k: 0)
 
     def never(*_a, **_k):
         raise AssertionError("publish must not compress; the web copy is made on first view")
 
-    monkeypatch.setattr("litereality_agent.room_ops.compress.compressed", never)
+    monkeypatch.setattr("lrauthor.room_ops.compress.compressed", never)
 
     def install(context, **kw):
         rec = Recorder(context, **kw)
@@ -158,7 +158,7 @@ def test_compare_frames_prefers_the_flag_then_the_environment(monkeypatch) -> No
 def test_cli_carries_the_publish_knob_to_the_stage() -> None:
     """`run` keys options by stage while `run_stage` takes them flat, so the two paths build the
     dict differently — and a knob wired into only one of them is the easy mistake."""
-    from litereality_agent import cli
+    from lrauthor import cli
 
     parser = cli._parser()
     assert cli._publish_options(parser.parse_args(

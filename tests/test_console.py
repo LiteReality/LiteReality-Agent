@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent import console
+from lrauthor import console
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ def test_short_keeps_paths_outside_the_checkout_absolute(tmp_path):
     An `--output-root` on another volume came out as `../../../../../private/var/folders/…` —
     longer than the absolute path it replaced, and it buries the part that identifies the run.
     """
-    from litereality_agent import REPO_ROOT
+    from lrauthor import REPO_ROOT
 
     inside = Path(REPO_ROOT) / "run" / "Scan" / "Room.py"
     assert console.short(inside) == os.path.join("run", "Scan", "Room.py")
@@ -170,7 +170,7 @@ def _run_module():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.pipeline.scene_init import flow as run
+    from lrauthor.pipeline.measure import flow as run
 
     return run
 
@@ -183,7 +183,7 @@ def test_expected_assets_covers_both_routes_and_openings(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from lrauthor.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -203,7 +203,7 @@ def test_built_count_recognises_both_glb_layouts(tmp_path, monkeypatch):
     run = _run_module()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path / "final"))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path / "out"))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from lrauthor.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -289,7 +289,7 @@ def test_only_one_module_resolves_blender():
     import re
     from pathlib import Path as P
 
-    pkg = P(__file__).resolve().parents[1] / "src" / "litereality_agent"
+    pkg = P(__file__).resolve().parents[1] / "src" / "lrauthor"
     body = re.compile(r"def _?find_blender\(\)[^\n]*\n(?:[ \t]+[^\n]*\n|\n)*")
     implementations = []
     for f in pkg.rglob("*.py"):
@@ -307,7 +307,7 @@ def test_only_one_module_resolves_blender():
 def test_the_resolver_finds_a_macos_app_bundle(monkeypatch, tmp_path):
     """The case that broke a real run: nothing in the environment, nothing on PATH, Blender
     installed as an app bundle."""
-    from litereality_agent.room_ops import paths as ic
+    from lrauthor.room_ops import paths as ic
 
     bundle = tmp_path / "Blender.app" / "Contents" / "MacOS"
     bundle.mkdir(parents=True)
@@ -324,7 +324,7 @@ def test_the_error_says_what_to_set(monkeypatch, tmp_path):
     """`Blender not found` with no next step is what sent this investigation the long way round."""
     import pytest as _pytest
 
-    from litereality_agent.room_ops import paths as ic
+    from lrauthor.room_ops import paths as ic
 
     monkeypatch.delenv("BLENDER", raising=False)
     monkeypatch.delenv("LITEREALITY_BLENDER", raising=False)
@@ -487,7 +487,7 @@ def test_importing_the_harness_config_creates_nothing(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.agent.tools.shared.config as c;"
+        "import lrauthor.agent.tools.shared.config as c;"
         f"print(sorted(str(p) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
@@ -507,7 +507,7 @@ def test_ensure_dirs_is_what_creates_them(tmp_path, monkeypatch):
         f"os.environ.update(LITEREALITY_SCAN='probe', LITEREALITY_OUTPUT={str(tmp_path)!r},"
         " LITEREALITY_BLENDER='/nonexistent');"
         "sys.modules.setdefault('bpy', type(sys)('bpy'));"
-        "import litereality_agent.agent.tools.shared.config as c; c.ensure_dirs();"
+        "import lrauthor.agent.tools.shared.config as c; c.ensure_dirs();"
         f"print(sorted(str(p.relative_to({str(tmp_path)!r})) for p in Path({str(tmp_path)!r}).rglob('*')))"
     )
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
@@ -525,7 +525,7 @@ def _run_mod():
     import types
 
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
-    from litereality_agent.pipeline.scene_init import flow as run
+    from lrauthor.pipeline.measure import flow as run
 
     return run
 
@@ -552,7 +552,7 @@ def test_branches_own_disjoint_objects(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from lrauthor.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     routing = config.work_root() / "routing"
@@ -773,7 +773,7 @@ def test_a_half_written_object_does_not_count_as_built(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from lrauthor.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -803,7 +803,7 @@ def test_the_counter_matches_what_the_builder_would_skip(tmp_path, monkeypatch):
     run = _run_mod()
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
+    from lrauthor.pipeline.measure import paths as config
 
     config.set_scan("Sim")
     recon = config.reconstruct_dir("Sim")
@@ -851,8 +851,8 @@ def test_polish_reuses_a_recorded_run(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
-    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
+    from lrauthor.pipeline.measure import paths as config
+    from lrauthor.pipeline.measure.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")
@@ -878,8 +878,8 @@ def test_force_ignores_the_marker(tmp_path, monkeypatch):
     sys.modules.setdefault("open3d", types.ModuleType("open3d"))
     monkeypatch.setenv("LITEREALITY_FINAL", str(tmp_path))
     monkeypatch.setenv("LITEREALITY_OUTPUT", str(tmp_path))
-    from litereality_agent.pipeline.scene_init import paths as config
-    from litereality_agent.pipeline.scene_init.ingest.detect import bbox_polish
+    from lrauthor.pipeline.measure import paths as config
+    from lrauthor.pipeline.measure.ingest.detect import bbox_polish
 
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")

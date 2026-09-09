@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from litereality_agent.agent.tools.critic.tool import (
+from lrauthor.agent.tools.critic.tool import (
     CriticInvocation,
     CriticParams,
     CriticTool,
@@ -55,7 +55,7 @@ def test_missing_image_is_reported_as_an_error(monkeypatch):
     async def _reject(images, *a, **k):
         raise FileNotFoundError(images[0])
 
-    monkeypatch.setattr("litereality_agent.agent.tools._vlm.vision", _reject, raising=False)
+    monkeypatch.setattr("lrauthor.agent.tools._vlm.vision", _reject, raising=False)
 
     res = _run(images=["/definitely/not/here.png"], goal="does this match?")
     assert not res.is_success(), "grading a nonexistent image cannot succeed"
@@ -77,7 +77,7 @@ def test_vlm_failure_is_reported_not_raised(tmp_path, monkeypatch):
     async def _boom(*a, **k):
         raise RuntimeError("model overloaded")
 
-    monkeypatch.setattr("litereality_agent.agent.tools._vlm.vision", _boom, raising=False)
+    monkeypatch.setattr("lrauthor.agent.tools._vlm.vision", _boom, raising=False)
 
     res = _run(images=[str(img)], goal="does the wall colour match?")
     assert not res.is_success()

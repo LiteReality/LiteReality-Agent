@@ -8,7 +8,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from litereality_agent.settings import LiteRealitySettings
+from lrauthor.settings import LiteRealitySettings
 
 
 def _settings(**overrides) -> LiteRealitySettings:
@@ -28,7 +28,7 @@ class FakeClient:
 
 
 def test_pipeline_installs_background_bypass_before_model_construction(monkeypatch):
-    from litereality_agent.models.trellis import inference
+    from lrauthor.models.trellis import inference
 
     calls = []
 
@@ -60,7 +60,7 @@ def test_pipeline_installs_background_bypass_before_model_construction(monkeypat
 def test_generate_exports_portable_glb_without_webp_extension(monkeypatch, tmp_path):
     from PIL import Image
 
-    from litereality_agent.models.trellis import inference
+    from lrauthor.models.trellis import inference
 
     calls = {}
 
@@ -104,7 +104,7 @@ def test_generate_exports_portable_glb_without_webp_extension(monkeypatch, tmp_p
 
 
 def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):
-    from litereality_agent.models.trellis.modal import ModalTrellisService
+    from lrauthor.models.trellis.modal import ModalTrellisService
 
     first = tmp_path / "first.png"
     second = tmp_path / "second.png"
@@ -141,7 +141,7 @@ def test_modal_trellis_maps_model_payloads_and_writes_outputs(tmp_path):
 
 
 def test_modal_trellis_isolates_model_reported_errors(tmp_path):
-    from litereality_agent.models.trellis.modal import ModalTrellisService
+    from lrauthor.models.trellis.modal import ModalTrellisService
 
     client = FakeClient([{"error": "generation failed"}])
     service = ModalTrellisService(app_name="unused", client=client)
@@ -153,7 +153,7 @@ def test_modal_trellis_isolates_model_reported_errors(tmp_path):
 
 
 def test_registry_selects_modal_trellis(monkeypatch):
-    from litereality_agent.models import registry
+    from lrauthor.models import registry
 
     captured = {}
 
@@ -161,7 +161,7 @@ def test_registry_selects_modal_trellis(monkeypatch):
         def __init__(self, **options):
             captured.update(options)
 
-    monkeypatch.setattr("litereality_agent.models.trellis.modal.ModalTrellisService", Service)
+    monkeypatch.setattr("lrauthor.models.trellis.modal.ModalTrellisService", Service)
     settings = _settings(modal_profile="huangzhening")
 
     assert isinstance(registry.gen3d_from_settings(settings), Service)
@@ -175,7 +175,7 @@ def test_registry_selects_modal_trellis(monkeypatch):
 
 
 def test_registry_never_implicitly_runs_trellis_locally():
-    from litereality_agent.models import registry
+    from lrauthor.models import registry
 
     # The app name now carries a default, so absent credentials leave TRELLIS unconfigured.
     settings = _settings()
@@ -186,13 +186,13 @@ def test_registry_never_implicitly_runs_trellis_locally():
 
 def test_registry_prefers_modal_when_only_a_profile_is_set(monkeypatch):
     """MODAL_PROFILE alone selects hosted TRELLIS: Modal is the default runtime."""
-    from litereality_agent.models import registry
+    from lrauthor.models import registry
 
     class Service:
         def __init__(self, **options):
             pass
 
-    monkeypatch.setattr("litereality_agent.models.trellis.modal.ModalTrellisService", Service)
+    monkeypatch.setattr("lrauthor.models.trellis.modal.ModalTrellisService", Service)
     # trellis_python is set and still not used — configured Modal wins over the local runtime.
     settings = _settings(modal_profile="a-workspace", trellis_python=sys.executable)
 
@@ -201,8 +201,8 @@ def test_registry_prefers_modal_when_only_a_profile_is_set(monkeypatch):
 
 def test_registry_falls_back_to_local_trellis_without_a_profile():
     """An explicit local GPU runtime stays reachable now that the app name always has a value."""
-    from litereality_agent.models import registry
-    from litereality_agent.models.trellis.service import LocalTrellisService
+    from lrauthor.models import registry
+    from lrauthor.models.trellis.service import LocalTrellisService
 
     settings = _settings(trellis_python=sys.executable)
 
@@ -210,7 +210,7 @@ def test_registry_falls_back_to_local_trellis_without_a_profile():
 
 
 def test_modal_client_uses_named_function_map():
-    from litereality_agent.runtimes.modal import ModalClient
+    from lrauthor.runtimes.modal import ModalClient
 
     class Function:
         def map(self, inputs, *, return_exceptions):
@@ -222,7 +222,7 @@ def test_modal_client_uses_named_function_map():
 
 
 def test_modal_client_pins_the_configured_profile(monkeypatch):
-    from litereality_agent.runtimes.modal import ModalClient
+    from lrauthor.runtimes.modal import ModalClient
 
     captured = {}
     modal = ModuleType("modal")

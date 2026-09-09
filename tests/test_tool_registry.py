@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.agent.tools import build_default_registry
-from litereality_agent.agent.tools.base import BaseDeclarativeTool
-from litereality_agent.agent.tools.default_registry import CAPABILITY_TOOLS
+from lrauthor.agent.tools import build_default_registry
+from lrauthor.agent.tools.base import BaseDeclarativeTool
+from lrauthor.agent.tools.default_registry import CAPABILITY_TOOLS
 
 # Built once at import so it can drive parametrization — instantiation is cheap and side-effect free
 # (build_default_registry is already used this way by the offline capability test).
@@ -33,7 +33,7 @@ def test_registry_is_exactly_the_capability_tools(registry):
     """The registry is now just the capability set the agent is handed — no closed-loop leftovers.
     If the count drifts, a tool was dropped (the model loses a capability) or added without updating
     author.CAPABILITY_TOOLS / the docs — surface it."""
-    from litereality_agent.agent.author import CAPABILITY_TOOLS as CAP_NAMES
+    from lrauthor.agent.author import CAPABILITY_TOOLS as CAP_NAMES
 
     assert len(CAPABILITY_TOOLS) == 6, f"expected 6 capability tools, got {len(CAPABILITY_TOOLS)}"
     assert set(registry.get_all_tool_names()) == set(CAP_NAMES)

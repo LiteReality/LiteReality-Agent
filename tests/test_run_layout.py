@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.settings import LiteRealitySettings
+from lrauthor.pipeline.context import RunContext
+from lrauthor.settings import LiteRealitySettings
 
 
 def context(tmp_path: Path) -> RunContext:

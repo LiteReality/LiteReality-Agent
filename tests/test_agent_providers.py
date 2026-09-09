@@ -20,9 +20,9 @@ import sys
 
 import pytest
 
-from litereality_agent.agent import providers
-from litereality_agent.agent.providers import base
-from litereality_agent.agent.providers.codex import _normalise
+from lrauthor.agent import providers
+from lrauthor.agent.providers import base
+from lrauthor.agent.providers.codex import _normalise
 
 # ── 1. selection ───────────────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ def test_unknown_provider_is_rejected(monkeypatch):
 
 def test_settings_reject_unknown_provider(monkeypatch):
     """The typo must fail at the composition boundary, not inside a paid session."""
-    from litereality_agent.settings import load_settings
+    from lrauthor.settings import load_settings
 
     monkeypatch.setenv("LR_AGENT_PROVIDER", "gpt")
     with pytest.raises(Exception, match="unsupported agent provider"):
@@ -61,7 +61,7 @@ def test_settings_reject_unknown_provider(monkeypatch):
 
 
 def test_settings_roles_inherit_the_global_provider(monkeypatch):
-    from litereality_agent.settings import load_settings
+    from lrauthor.settings import load_settings
 
     monkeypatch.setenv("LR_AGENT_PROVIDER", "codex")
     monkeypatch.setenv("LR_AUTHOR_PROVIDER", "claude")
@@ -77,7 +77,7 @@ def test_unexpanded_dotenv_default_is_treated_as_unset(monkeypatch):
     `critic_model` already carries a workaround for this; a provider arriving as `$lr_agent_provider`
     must read as "unset", not as an invalid harness name.
     """
-    from litereality_agent.settings import LiteRealitySettings
+    from lrauthor.settings import LiteRealitySettings
 
     assert LiteRealitySettings._checked_provider("$LR_AGENT_PROVIDER") is None
     assert LiteRealitySettings._checked_provider("  ") is None
@@ -88,7 +88,7 @@ def test_unexpanded_dotenv_default_is_treated_as_unset(monkeypatch):
 
 
 def test_blocks_narrate_and_attribute_like_sdk_blocks():
-    from litereality_agent.agent.tool_narration import ToolNarrator
+    from lrauthor.agent.tool_narration import ToolNarrator
 
     nar = ToolNarrator()
     line = nar.use(base.ToolUseBlock(id="t1", name="mcp__cap__render", input={"target": "Wall0"}))
@@ -100,7 +100,7 @@ def test_blocks_narrate_and_attribute_like_sdk_blocks():
 
 
 def test_error_results_are_reported():
-    from litereality_agent.agent.tool_narration import ToolNarrator
+    from lrauthor.agent.tool_narration import ToolNarrator
 
     nar = ToolNarrator()
     nar.use(base.ToolUseBlock(id="t1", name="Edit", input={"file_path": "/x/Room.py"}))
@@ -111,7 +111,7 @@ def test_error_results_are_reported():
 
 def test_trace_records_normalised_blocks(tmp_path):
     """`AgentTrace` walks dataclasses for the raw sidecar — our blocks must survive that."""
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent.trace import AgentTrace
 
     tr = AgentTrace("test", room=tmp_path)
     tr.start(model="m")
@@ -173,7 +173,7 @@ def test_codex_file_changes_map_to_the_edit_vocabulary():
 
 def test_codex_mcp_calls_keep_the_cap_prefix():
     """`tool_label` splits on `__`, so capability tools must arrive fully qualified."""
-    from litereality_agent.agent.tool_narration import tool_label
+    from lrauthor.agent.tool_narration import tool_label
 
     blocks = _normalise(
         {"type": "item.started",
@@ -202,7 +202,7 @@ def test_codex_unknown_events_do_not_raise():
 
 
 def test_codex_without_the_cli_fails_with_an_actionable_message(monkeypatch):
-    from litereality_agent.agent.providers.codex import CodexHarness
+    from lrauthor.agent.providers.codex import CodexHarness
 
     monkeypatch.setattr("shutil.which", lambda _: None)
     spec = base.SessionSpec(prompt="hi", cwd=".")
@@ -219,8 +219,8 @@ def test_codex_without_the_cli_fails_with_an_actionable_message(monkeypatch):
 
 
 def test_describe_flags_a_degraded_step_budget():
-    from litereality_agent.agent.providers.claude import ClaudeHarness
-    from litereality_agent.agent.providers.codex import CodexHarness
+    from lrauthor.agent.providers.claude import ClaudeHarness
+    from lrauthor.agent.providers.codex import CodexHarness
 
     spec = base.SessionSpec(prompt="p", cwd=".", step_budget=100, step_reserve=15,
                             capability_tools=("render",))
@@ -233,7 +233,7 @@ def test_describe_flags_a_degraded_step_budget():
 
 
 def test_claude_supports_everything_the_call_sites_rely_on():
-    from litereality_agent.agent.providers.claude import ClaudeHarness
+    from lrauthor.agent.providers.claude import ClaudeHarness
 
     assert {"hooks", "inproc_tools", "cost", "skills", "read_events"} <= ClaudeHarness().supports
 
@@ -247,13 +247,13 @@ def test_stdio_bridge_matches_the_registry():
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
-    from litereality_agent.agent.author import CAPABILITY_TOOLS
-    from litereality_agent.agent.tools import build_default_registry
+    from lrauthor.agent.author import CAPABILITY_TOOLS
+    from lrauthor.agent.tools import build_default_registry
 
     async def listing():
         params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "litereality_agent.agent.tools.mcp_server", "--scene", "/tmp/room"],
+            args=["-m", "lrauthor.agent.tools.mcp_server", "--scene", "/tmp/room"],
         )
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -276,7 +276,7 @@ def _captured_options(spec, messages=()):
     """Run the claude harness with `query` stubbed; return the ClaudeAgentOptions it built."""
     import claude_agent_sdk
 
-    from litereality_agent.agent.providers.claude import ClaudeHarness
+    from lrauthor.agent.providers.claude import ClaudeHarness
 
     seen = {}
 
@@ -307,7 +307,7 @@ def test_claude_session_matches_the_pre_refactor_shape(tmp_path):
     """The authoring session's wiring is load-bearing: the room as cwd, the stitch/scan/repo roots
     readable, ONLY Read/Edit/Write/Glob plus the six `mcp__cap__*` tools, and the step-budget hook
     installed. Rebuilding that from a SessionSpec must produce the same thing."""
-    from litereality_agent.agent.author import CAPABILITY_TOOLS
+    from lrauthor.agent.author import CAPABILITY_TOOLS
 
     spec = base.SessionSpec(
         prompt="author the room",
@@ -369,7 +369,7 @@ def test_session_result_carries_cost_and_summary(tmp_path):
 
 def test_step_budget_hook_winds_down_then_stops(tmp_path):
     """The graceful landing: capability tools denied in the reserve, clean stop at the cap."""
-    from litereality_agent.agent.providers.claude import _make_step_budget_hook
+    from lrauthor.agent.providers.claude import _make_step_budget_hook
 
     state = {"calls": 0}
     hook = _make_step_budget_hook(state, budget=5, reserve=2, log=lambda _: None)

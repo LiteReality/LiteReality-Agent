@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from litereality_agent.models.object_generation import generate
+from lrauthor.models.object_generation import generate
 
 GATE_SECONDS = 0.4
 

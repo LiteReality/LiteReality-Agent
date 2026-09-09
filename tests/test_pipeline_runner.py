@@ -3,11 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.result import StageResult, StageStatus
-from litereality_agent.pipeline.runner import PipelineRunner
-from litereality_agent.pipeline.stage import Stage
-from litereality_agent.settings import LiteRealitySettings
+from lrauthor.pipeline.context import RunContext
+from lrauthor.pipeline.result import StageResult, StageStatus
+from lrauthor.pipeline.runner import PipelineRunner
+from lrauthor.pipeline.stage import Stage
+from lrauthor.settings import LiteRealitySettings
 
 
 def context(tmp_path: Path) -> RunContext:

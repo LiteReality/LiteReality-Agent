@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from litereality_agent.models.object_generation.sim.mjcf import to_mjcf  # noqa: E402
-from litereality_agent.models.object_generation.sim.properties import (  # noqa: E402
+from lrauthor.models.object_generation.sim.mjcf import to_mjcf  # noqa: E402
+from lrauthor.models.object_generation.sim.properties import (  # noqa: E402
     DEFAULT_FRICTION,
     MATERIAL_FRICTION,
     Collider,
@@ -26,7 +26,7 @@ from litereality_agent.models.object_generation.sim.properties import (  # noqa:
     _inertia_from_geometry,
     _lookup,
 )
-from litereality_agent.models.object_generation.sim.urdf import to_urdf  # noqa: E402
+from lrauthor.models.object_generation.sim.urdf import to_urdf  # noqa: E402
 
 trimesh = pytest.importorskip("trimesh")
 np = pytest.importorskip("numpy")
@@ -142,7 +142,7 @@ def test_a_missing_native_dependency_is_loud(monkeypatch):
     physics json and URDF are still written, so the output looks finished and was never checked.
     Both are declared dependencies, so a missing one is an install fault and must say so.
     """
-    from litereality_agent.models.object_generation.sim import properties
+    from lrauthor.models.object_generation.sim import properties
 
     real = importlib.util.find_spec
 
@@ -163,6 +163,6 @@ def test_a_missing_native_dependency_is_loud(monkeypatch):
 
 
 def test_require_passes_for_something_installed():
-    from litereality_agent.models.object_generation.sim.properties import require
+    from lrauthor.models.object_generation.sim.properties import require
 
     require("json", "this can never happen")

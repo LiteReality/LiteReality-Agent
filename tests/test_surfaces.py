@@ -7,7 +7,7 @@ rest of the room was never referenced.
 
 from __future__ import annotations
 
-from litereality_agent.room_ops.surfaces import SLIVER_WALL_M, surface_ids
+from lrauthor.room_ops.surfaces import SLIVER_WALL_M, surface_ids
 
 
 def test_discovers_the_rooms_real_surfaces(stage_tree):
@@ -62,7 +62,7 @@ def test_missing_room_py_degrades_instead_of_raising(tmp_path):
 def test_surfaces_for_bridges_the_room_dir(stage_tree):
     """`author`/`materials_pass`/`qc_pass`/`eval_room` all call this one bridge, so it must accept a
     room DIRECTORY (not a Room.py path) and agree with the parser."""
-    from litereality_agent.agent.author import surfaces_for
+    from lrauthor.agent.author import surfaces_for
 
     assert surfaces_for(stage_tree.physical_room) == surface_ids(stage_tree.physical_room / "Room.py")
 
@@ -70,7 +70,7 @@ def test_surfaces_for_bridges_the_room_dir(stage_tree):
 def test_eval_room_grades_only_real_walls(stage_tree):
     """`eval_room` averages scores over the walls it grades; inventing Wall0..Wall8 for a smaller
     room makes `mean_score` meaningless."""
-    from litereality_agent.agent.author import surfaces_for
+    from lrauthor.agent.author import surfaces_for
 
     walls = [s for s in surfaces_for(stage_tree.physical_room) if s.startswith("Wall")]
     assert walls == ["Wall0", "Wall1", "Wall3", "Wall10"]

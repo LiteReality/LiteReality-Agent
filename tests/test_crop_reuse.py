@@ -12,9 +12,9 @@ import pickle
 import pytest
 from PIL import Image
 
-from litereality_agent.pipeline.scene_init import paths as config
-from litereality_agent.pipeline.scene_init.ingest.crop import crop_objects
-from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality import (
+from lrauthor.pipeline.measure import paths as config
+from lrauthor.pipeline.measure.ingest.crop import crop_objects
+from lrauthor.pipeline.measure.ingest.preprocessing.vendor.litereality import (
     scene_preprocessing,
 )
 

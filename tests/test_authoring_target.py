@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from litereality_agent import cli
+from lrauthor import cli
 
 
 @pytest.fixture

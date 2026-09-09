@@ -15,7 +15,7 @@ import asyncio
 
 import pytest
 
-from litereality_agent.models.object_generation.generate import Job, run_all
+from lrauthor.models.object_generation.generate import Job, run_all
 
 
 def _job(name: str) -> Job:
@@ -37,7 +37,7 @@ def runner(monkeypatch):
             await asyncio.sleep(0)  # yield, so the dispatcher gets to look again
             job.status = "ok"
 
-    monkeypatch.setattr("litereality_agent.models.object_generation.generate.process",
+    monkeypatch.setattr("lrauthor.models.object_generation.generate.process",
                         fake_process)
     return started
 
@@ -82,7 +82,7 @@ def test_the_concurrency_limit_still_holds_for_late_arrivals(monkeypatch):
             live -= 1
             job.status = "ok"
 
-    monkeypatch.setattr("litereality_agent.models.object_generation.generate.process",
+    monkeypatch.setattr("lrauthor.models.object_generation.generate.process",
                         fake_process)
     first = [_job(f"o{i}") for i in range(2)]
     everything = [*first, *(_job(f"late{i}") for i in range(6))]
@@ -97,7 +97,7 @@ def test_a_crashing_job_is_not_swallowed(monkeypatch):
     async def boom(job, sem, args):
         raise RuntimeError("blender died")
 
-    monkeypatch.setattr("litereality_agent.models.object_generation.generate.process", boom)
+    monkeypatch.setattr("lrauthor.models.object_generation.generate.process", boom)
 
     with pytest.raises(RuntimeError, match="blender died"):
         asyncio.run(run_all([_job("o0")], list, asyncio.Semaphore(2), Args()))

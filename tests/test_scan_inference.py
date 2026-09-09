@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.agent.tools.render.source.compose import _scan_from_room
+from lrauthor.agent.tools.render.source.compose import _scan_from_room
 
 
 def test_scan_from_physical_deliverables_path(stage_tree):
@@ -38,7 +38,7 @@ def test_scan_from_output_symlink_path(stage_tree):
 def test_scan_from_room_py_file_path(stage_tree):
     """Tools bind either the room dir or its Room.py; `room_dir_from` normalizes, but callers in
     the wild pass both, so both spellings must land on the same scan."""
-    from litereality_agent.agent.tools._scene import room_dir_from
+    from lrauthor.agent.tools._scene import room_dir_from
 
     assert _scan_from_room(room_dir_from(str(stage_tree.symlinked_room / "Room.py"))) == stage_tree.scan
 
@@ -81,7 +81,7 @@ def test_every_caller_uses_this_helper():
     root = (
         Path(__file__).resolve().parents[1]
         / "src"
-        / "litereality_agent"
+        / "lrauthor"
         / "scene"
         / "rendering"
     )

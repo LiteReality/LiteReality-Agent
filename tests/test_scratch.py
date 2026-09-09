@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.agent import scratch
+from lrauthor.agent import scratch
 
 
 @pytest.fixture
@@ -176,7 +176,7 @@ def test_prompt_line_names_the_directory_and_forbids_tmp(bound: Path):
 def test_relative_image_names_resolve_against_the_stage_roots(tmp_path, monkeypatch):
     """`_save_image` checked `Path('conf_00000.png').is_file()` against the process CWD, so every
     relative name failed: 1 of 7 image events in a real trace saved anything."""
-    from litereality_agent.agent.trace import AgentTrace
+    from lrauthor.agent.trace import AgentTrace
 
     surface_ref = tmp_path / "surface_ref"
     surface_ref.mkdir()

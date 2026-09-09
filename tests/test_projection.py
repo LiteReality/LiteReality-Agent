@@ -24,7 +24,7 @@ import pytest
 for _heavy in ("open3d", "cv2"):
     sys.modules.setdefault(_heavy, types.ModuleType(_heavy))
 
-from litereality_agent.pipeline.scene_init.ingest.preprocessing.vendor.litereality.object_image_extraction import (  # noqa: E402
+from lrauthor.pipeline.measure.ingest.preprocessing.vendor.litereality.object_image_extraction import (  # noqa: E402
     project_to_pixels,
     round_to_int,
 )

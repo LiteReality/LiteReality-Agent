@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.agent import scratch
-from litereality_agent.agent.trace import AgentTrace, _run_id_of
+from lrauthor.agent import scratch
+from lrauthor.agent.trace import AgentTrace, _run_id_of
 
 SCAN = "test-scan-Room"
 

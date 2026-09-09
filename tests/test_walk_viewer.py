@@ -14,10 +14,10 @@ from urllib.request import urlopen
 
 import pytest
 
-from litereality_agent.pipeline.context import RunContext
-from litereality_agent.pipeline.room_qc import publish
-from litereality_agent.pipeline.room_qc.publish import WEB_GLB_NAME
-from litereality_agent.room_ops import walk
+from lrauthor.pipeline.compile import publish
+from lrauthor.pipeline.compile.publish import WEB_GLB_NAME
+from lrauthor.pipeline.context import RunContext
+from lrauthor.room_ops import walk
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ def compressor(monkeypatch):
         cache.write_bytes(b"draco:" + Path(glb).read_bytes())
         return cache
 
-    monkeypatch.setattr("litereality_agent.room_ops.compress.compressed", fake_compressed)
+    monkeypatch.setattr("lrauthor.room_ops.compress.compressed", fake_compressed)
     return calls
 
 
@@ -190,7 +190,7 @@ def test_no_blender_serves_the_full_size_room(published: Path, monkeypatch) -> N
     """`compress` hands back the ORIGINAL when Blender is missing. A slower page is not a reason to
     refuse to show the room, so the viewer takes whatever comes back."""
     context = _context(published)
-    monkeypatch.setattr("litereality_agent.room_ops.compress.compressed", lambda glb, cache: glb)
+    monkeypatch.setattr("lrauthor.room_ops.compress.compressed", lambda glb, cache: glb)
 
     assert publish.viewable_room(context) == context.preview_dir / "Room.glb"
 

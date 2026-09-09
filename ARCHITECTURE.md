@@ -13,7 +13,7 @@ prerequisites, reuse, failure handling, and state in `run/<scene>/.litereality/p
 ## Package layout
 
 ```text
-src/litereality_agent/
+src/lrauthor/
 ├── cli.py               the supported command surface
 ├── settings.py          Pydantic environment settings
 ├── pipeline/            workflow ordering, state, and phase implementations
@@ -99,8 +99,8 @@ composition boundary.
 3. It renders rooms and exports assets.
 4. It serves the walkable viewer.
 
-Quality control has two scopes. `pipeline/scene_init/reconstruct/mesh_qc` checks each generated
-asset before it enters the room. `pipeline/room_qc` checks the assembled room and corrects object
+Quality control has two scopes. `pipeline/scene_init/reconstruct/mesh_quality_check` checks each generated
+asset before it enters the room. `pipeline/compile/quality_check` checks the assembled room and corrects object
 placement. The collision tool keeps its reusable geometry code under `agent/tools`, while the
 pipeline decides what to do with each result.
 

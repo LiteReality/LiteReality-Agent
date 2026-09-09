@@ -12,7 +12,7 @@ rather than arguing about it.
     python assets/sim-ready/measure_collider_budget.py [--out assets/sim-ready]
 
 Writes budget.json and budget.png. Needs a compiled object under run/ (see
-`python -m litereality_agent.models.object_generation.sim build <glb>`).
+`python -m lrauthor.models.object_generation.sim build <glb>`).
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from scipy.spatial import ConvexHull
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from litereality_agent.models.object_generation.sim.properties import _decompose  # noqa: E402
+from lrauthor.models.object_generation.sim.properties import _decompose  # noqa: E402
 
 RUN = Path("/scratch2/LiteReality-Agent/run")
 CARCASS = ("Airbnb-Cam-Zhening", "Storage1", "base_link")

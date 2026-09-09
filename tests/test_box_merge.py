@@ -20,7 +20,7 @@ import json
 import pickle
 from pathlib import Path
 
-from litereality_agent.pipeline.scene_init.ingest import merge_boxes
+from lrauthor.pipeline.measure.ingest import merge_boxes
 
 
 def box(name: str, pos: tuple[float, float, float], size: tuple[float, float, float],
@@ -216,7 +216,7 @@ def test_wall_segments_degrades_to_empty_instead_of_raising(tmp_path, capsys):
 
 def test_the_guard_is_on_by_default_and_opt_outable(monkeypatch, tmp_path):
     """It ships on. `$LR_BOX_MERGE_WALL_GUARD=0` is the escape hatch if a scan's walls are wrong."""
-    import litereality_agent.pipeline.scene_init.paths as config
+    import lrauthor.pipeline.measure.paths as config
 
     scene = tmp_path / "scene"
     scene.mkdir()
@@ -368,9 +368,9 @@ def test_merge_runs_before_crop_in_the_pipeline():
     src = (
         Path(__file__).resolve().parents[1]
         / "src"
-        / "litereality_agent"
+        / "lrauthor"
         / "pipeline"
-        / "scene_init"
+        / "measure"
         / "flow.py"
     ).read_text()
     assert "merge_boxes.merge_for_scan(" in src, "the merge is not wired into init at all"

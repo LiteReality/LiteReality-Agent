@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.agent.author import CAPABILITY_TOOLS, build_capability_server
-from litereality_agent.agent.tools import build_default_registry
+from lrauthor.agent.author import CAPABILITY_TOOLS, build_capability_server
+from lrauthor.agent.tools import build_default_registry
 
 
 @pytest.fixture(scope="module")

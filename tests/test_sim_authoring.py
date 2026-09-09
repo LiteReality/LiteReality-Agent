@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-SCRIPTS = (Path(__file__).resolve().parents[1] / "src/litereality_agent/models/object_generation"
+SCRIPTS = (Path(__file__).resolve().parents[1] / "src/lrauthor/models/object_generation"
            / "articulated-glb-agent/.claude/skills/image-to-articulated-glb/scripts")
 sys.path.insert(0, str(SCRIPTS))
 

@@ -16,18 +16,18 @@ import re
 import numpy as np
 import pytest
 
-from litereality_agent.pipeline.scene_init.layout import adapter, report
-from litereality_agent.pipeline.scene_init.layout.adjust import check
-from litereality_agent.pipeline.scene_init.layout.graph import expected_pair, in_category
-from litereality_agent.pipeline.scene_init.layout.repair import (
+from lrauthor.pipeline.measure.layout import adapter, report
+from lrauthor.pipeline.measure.layout.adjust import check
+from lrauthor.pipeline.measure.layout.graph import expected_pair, in_category
+from lrauthor.pipeline.measure.layout.repair import (
     SHRINKABLE,
     attachments,
     duplicates,
     repair,
     score,
 )
-from litereality_agent.pipeline.scene_init.layout.stage import run_layout
-from litereality_agent.room_ops.export import export_room
+from lrauthor.pipeline.measure.layout.stage import run_layout
+from lrauthor.room_ops.export import export_room
 
 
 def errors(shell):

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from litereality_agent.agent.author import checkpoint, room_compiles
+from lrauthor.agent.author import checkpoint, room_compiles
 
 GOOD = "SHELL = {'walls': {}}\n\n\ndef build():\n    return SHELL\n"
 BROKEN = "SHELL = {'walls': {\n\ndef build(:\n"
@@ -114,7 +114,7 @@ class _CancelledHarness:
 
 
 def _run_with_result(room, tmp_path, monkeypatch, result):
-    from litereality_agent.agent import author, providers
+    from lrauthor.agent import author, providers
 
     refs = tmp_path / "refs"
     scan = tmp_path / "scan"
@@ -122,13 +122,13 @@ def _run_with_result(room, tmp_path, monkeypatch, result):
     scan.mkdir(exist_ok=True)
     monkeypatch.setattr(author, "surfaces_for", lambda _room: [])
     monkeypatch.setattr(providers, "resolve", lambda *_args: _ResultHarness(result))
-    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
-    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
+    monkeypatch.setattr("lrauthor.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("lrauthor.agent.scratch.prompt_line", lambda: "")
     return asyncio.run(author.run(room, refs, scan, "test", 1))
 
 
 def test_cancelling_authoring_stops_the_run(room, tmp_path, monkeypatch):
-    from litereality_agent.agent import author, providers
+    from lrauthor.agent import author, providers
 
     refs = tmp_path / "refs"
     scan = tmp_path / "scan"
@@ -136,8 +136,8 @@ def test_cancelling_authoring_stops_the_run(room, tmp_path, monkeypatch):
     scan.mkdir(exist_ok=True)
     monkeypatch.setattr(author, "surfaces_for", lambda _room: [])
     monkeypatch.setattr(providers, "resolve", lambda *_args: _CancelledHarness())
-    monkeypatch.setattr("litereality_agent.agent.scratch.bind", lambda **_kwargs: None)
-    monkeypatch.setattr("litereality_agent.agent.scratch.prompt_line", lambda: "")
+    monkeypatch.setattr("lrauthor.agent.scratch.bind", lambda **_kwargs: None)
+    monkeypatch.setattr("lrauthor.agent.scratch.prompt_line", lambda: "")
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(author.run(room, refs, scan, "test", 1))
@@ -146,8 +146,8 @@ def test_cancelling_authoring_stops_the_run(room, tmp_path, monkeypatch):
 def test_cancelling_object_refinement_is_not_retried(room, tmp_path, monkeypatch):
     from PIL import Image
 
-    from litereality_agent.agent import providers
-    from litereality_agent.pipeline.realism_authoring.author import refine_objects
+    from lrauthor.agent import providers
+    from lrauthor.pipeline.author.realism import refine_objects
 
     name = "Chair0"
     obj_dir = room / "Objects" / "Procedural" / name
@@ -186,7 +186,7 @@ def test_cancelling_object_refinement_is_not_retried(room, tmp_path, monkeypatch
 
 
 def test_terminal_provider_error_fails_authoring(room, tmp_path, monkeypatch):
-    from litereality_agent.agent.providers import SessionResult
+    from lrauthor.agent.providers import SessionResult
 
     before = (room / "Room.py").read_text(encoding="utf-8")
     result = SessionResult(result="authentication failed", is_error=True)
@@ -196,7 +196,7 @@ def test_terminal_provider_error_fails_authoring(room, tmp_path, monkeypatch):
 
 
 def test_deliberate_provider_stop_keeps_partial_success(room, tmp_path, monkeypatch):
-    from litereality_agent.agent.providers import SessionResult
+    from lrauthor.agent.providers import SessionResult
 
     result = SessionResult(result="budget reached", stopped="step budget")
 
@@ -204,9 +204,9 @@ def test_deliberate_provider_stop_keeps_partial_success(room, tmp_path, monkeypa
 
 
 def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
-    from litereality_agent.pipeline.context import RunContext
-    from litereality_agent.pipeline.realism_authoring import author
-    from litereality_agent.settings import LiteRealitySettings
+    from lrauthor.pipeline.author import realism as author
+    from lrauthor.pipeline.context import RunContext
+    from lrauthor.settings import LiteRealitySettings
 
     settings = LiteRealitySettings(repo_root=tmp_path, output_root=tmp_path / "run")
     context = RunContext(
@@ -237,8 +237,8 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
 
     assert result.ok
     assert [module for module, _, _ in calls] == [
-        "litereality_agent.pipeline.realism_authoring.author.entrypoint",
-        "litereality_agent.pipeline.realism_authoring.author.refine_objects",
-        "litereality_agent.pipeline.realism_authoring.author.materials",
-        "litereality_agent.pipeline.realism_authoring.author.quality",
+        "lrauthor.pipeline.author.realism.entrypoint",
+        "lrauthor.pipeline.author.realism.refine_objects",
+        "lrauthor.pipeline.author.realism.materials",
+        "lrauthor.pipeline.author.realism.quality",
     ]

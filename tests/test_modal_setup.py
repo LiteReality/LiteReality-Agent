@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from litereality_agent.runtimes import setup
+from lrauthor.runtimes import setup
 
 
 def test_record_profile_creates_env_file(tmp_path):
@@ -134,7 +134,7 @@ def test_deploy_passes_tokens_to_each_subprocess(tmp_path, monkeypatch):
 
 def test_settings_need_both_halves_of_the_token_pair():
     """Half a pair cannot authenticate, so it must not read as configured."""
-    from litereality_agent.settings import LiteRealitySettings
+    from lrauthor.settings import LiteRealitySettings
 
     half = LiteRealitySettings(_env_file=None, MODAL_TOKEN_ID="ak-1")
     assert half.modal_credentials() is None
@@ -146,7 +146,7 @@ def test_settings_need_both_halves_of_the_token_pair():
 
 
 def test_tokens_reach_subprocesses_through_as_environment():
-    from litereality_agent.settings import LiteRealitySettings
+    from lrauthor.settings import LiteRealitySettings
 
     settings = LiteRealitySettings(
         _env_file=None, MODAL_TOKEN_ID="ak-1", MODAL_TOKEN_SECRET="as-2"
@@ -158,14 +158,14 @@ def test_tokens_reach_subprocesses_through_as_environment():
 
 
 def test_modal_client_rejects_having_no_credentials_at_all():
-    from litereality_agent.runtimes.modal import ModalClient
+    from lrauthor.runtimes.modal import ModalClient
 
     with pytest.raises(RuntimeError, match="MODAL_TOKEN_ID"):
         ModalClient("app", "fn")
 
 
 def test_cli_exposes_setup():
-    from litereality_agent.cli import _parser
+    from lrauthor.cli import _parser
 
     args = _parser().parse_args(["setup", "--skip-deploy", "--profile", "team-a"])
 
