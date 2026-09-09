@@ -55,7 +55,11 @@ class Report:
 
 
 def _load(xml: Path):
+    from .properties import require
+
+    require("mujoco", "the physics gate cannot run and the asset would ship unchecked")
     import mujoco
+
     return mujoco.MjModel.from_xml_path(str(xml))
 
 

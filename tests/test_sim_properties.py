@@ -6,6 +6,7 @@ is a pure function of it, so they can be tested without building anything.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -131,3 +132,37 @@ def test_scenario_variants_stay_beside_their_meshes(tmp_path):
     release = to_mjcf(model, tmp_path, free=False, suffix="_release")
     assert drop.parent == release.parent == tmp_path
     assert drop != release
+
+
+def test_a_missing_native_dependency_is_loud(monkeypatch):
+    """The two failure modes that matter are both silent by default.
+
+    Without coacd every concave link falls back to its own convex hull and the gate still reports a
+    clean pass — measured on Table1, 11 colliders became 2 and nothing said so. Without mujoco the
+    physics json and URDF are still written, so the output looks finished and was never checked.
+    Both are declared dependencies, so a missing one is an install fault and must say so.
+    """
+    from litereality_agent.models.object_generation.sim import properties
+
+    real = importlib.util.find_spec
+
+    def missing(name, *a, **kw):
+        return None if name in ("coacd", "mujoco") else real(name, *a, **kw)
+
+    monkeypatch.setattr(importlib.util, "find_spec", missing)
+
+    with pytest.raises(RuntimeError, match="coacd is not installed"):
+        properties.require("coacd", "concave links would collapse")
+    with pytest.raises(RuntimeError, match="mujoco is not installed"):
+        properties.require("mujoco", "the gate cannot run")
+    # and it must point at the fix rather than leaving someone to work around it
+    try:
+        properties.require("coacd", "x")
+    except RuntimeError as exc:
+        assert "uv sync" in str(exc)
+
+
+def test_require_passes_for_something_installed():
+    from litereality_agent.models.object_generation.sim.properties import require
+
+    require("json", "this can never happen")

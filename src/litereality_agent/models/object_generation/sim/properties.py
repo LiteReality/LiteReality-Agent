@@ -208,14 +208,41 @@ def _inertia_from_geometry(mesh, mass: float):
 
 
 def _coacd_worker(vertices, faces, budget, mode, queue):
+    # The IMPORT is reported separately from the run. "coacd cannot be loaded" and "coacd could not
+    # split this mesh" both end in an empty result, and only the second is a fact about the mesh;
+    # collapsing them is what let a whole scene fall back to convex hulls and still pass.
     try:
         import coacd
+    except Exception as exc:                                 # noqa: BLE001 — broken wheel included
+        queue.put({"import_error": f"{type(exc).__name__}: {exc}"})
+        return
+    try:
         coacd.set_log_level("error")          # it logs a progress bar per split, to stdout
         parts = coacd.run_coacd(coacd.Mesh(vertices, faces),
                                 max_convex_hull=budget, preprocess_mode=mode)
         queue.put([(np.asarray(v).tolist(), np.asarray(f).tolist()) for v, f in parts])
     except Exception:                                        # noqa: BLE001
         queue.put([])
+
+
+def require(module: str, what: str) -> None:
+    """A declared dependency that is missing is an INSTALL fault, and it has to say so.
+
+    Both of this module's native dependencies fail quietly if you let them. Without `coacd` every
+    concave link falls back to its own convex hull and the gate still reports a clean pass — a
+    cupboard becomes a solid block and nothing in the report says why. Without `mujoco` the physics
+    json and URDF are still written, so the output looks finished and was never checked. Neither is
+    a condition to tolerate now that both are declared in pyproject: raise, and let the caller
+    record it as the error it is.
+    """
+    from importlib.util import find_spec
+
+    if find_spec(module) is None:
+        raise RuntimeError(
+            f"{module} is not installed, so {what}. It is a declared dependency — "
+            f"run `uv sync` rather than working around this: without it the output looks "
+            f"complete and is quietly wrong."
+        )
 
 
 def _decompose(mesh, budget: int):
@@ -240,6 +267,7 @@ def _decompose(mesh, budget: int):
     import queue as queue_mod
     import time
 
+    require("coacd", "concave links would silently collapse to a single convex hull")
     for mode in ("off", "auto"):
         ctx = mp.get_context("spawn")
         q = ctx.Queue()
@@ -257,6 +285,12 @@ def _decompose(mesh, budget: int):
                     break
         proc.terminate()
         proc.join(5)
+        if isinstance(parts, dict):               # could not load coacd at all
+            raise RuntimeError(
+                f"coacd could not be imported ({parts['import_error']}), so concave links would "
+                "silently collapse to a single convex hull — a cupboard as a solid block. It is a "
+                "declared dependency: run `uv sync` rather than working around this."
+            )
         if parts:
             return parts
     return []
