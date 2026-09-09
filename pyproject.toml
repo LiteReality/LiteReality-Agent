@@ -39,6 +39,15 @@ dependencies = [
     # so this costs a few MB and no compiler — cheaper than shipping a gate that quietly does nothing.
     "python-fcl",
     "networkx",
+    # Sim-ready object physics. NOT optional, for the same reason as python-fcl above and with a
+    # nastier failure: without `coacd` every concave link falls back to its own convex hull and the
+    # gate still reports a clean pass, so a cupboard silently becomes a solid block and a drawer a
+    # brick — the exact failure the decomposition exists to prevent, invisible in the report.
+    # Without `mujoco` the drop/release/tilt gate cannot run at all, while the physics json and
+    # URDF are still written, so the output looks complete and was never checked. Both ship
+    # prebuilt wheels for every interpreter and platform we support.
+    "coacd",
+    "mujoco",
     # viewer (later)
     "fastapi>=0.111.0",
     "uvicorn>=0.30.0",

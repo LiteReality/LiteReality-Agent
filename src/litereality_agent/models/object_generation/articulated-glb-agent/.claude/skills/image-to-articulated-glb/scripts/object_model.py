@@ -30,6 +30,11 @@ class Material:
     diffuse: str | None = None
     rough: str | None = None
     normal: str | None = None
+    # Contact properties. A material is where these belong: chrome legs and a fabric seat grip
+    # differently, and the material is the only place that difference is already recorded.
+    # Leave them None and the sim compiler keys a default off the material NAME.
+    friction: float | None = None      # sliding coefficient
+    restitution: float | None = None   # bounce; used by Isaac/Bullet, ignored by MuJoCo
 
 
 @dataclass
@@ -40,6 +45,11 @@ class Part:
     at: tuple = (0.0, 0.0, 0.0)  # centre location, metres, build frame (X=width, Y=depth, Z=up)
     material: str = ""
     rot: tuple = (0.0, 0.0, 0.0)  # euler, for a cylinder whose axis isn't +Z
+    # What it weighs. Give `mass` (kg) when the reference tells you, `density` (kg/m^3 of this
+    # part's own volume) when the material is obvious but the weight is not, and neither when you
+    # would be guessing — the compiler then shares the object's occupancy mass out by volume.
+    mass: float | None = None
+    density: float | None = None
 
 
 @dataclass
@@ -50,6 +60,12 @@ class Joint:
     origin: tuple = (0.0, 0.0, 0.0)  # hinge point (revolute only)
     limit_min: float = 0.0
     limit_max: float = 0.0  # radians (revolute) / metres (prismatic)
+    # How it moves. None means "use the default for this joint type"; set them for a joint that is
+    # genuinely unusual — a soft-close drawer damps hard, a fire door needs real effort to hold.
+    damping: float | None = None
+    friction: float | None = None
+    effort: float | None = None     # N or Nm, for URDF consumers
+    velocity: float | None = None   # m/s or rad/s
 
 
 @dataclass
@@ -116,6 +132,18 @@ def validate(model: ArticulatedModel) -> dict:
             add("hard", "material_ref", p.name, f"references unknown material {p.material!r}")
         if p.shape not in ("box", "rounded_box", "cylinder"):
             add("hard", "shape", p.name, f"unknown shape {p.shape!r}")
+        if p.mass is not None and p.density is not None:
+            add("hard", "physics", p.name, "sets both mass and density — they will disagree")
+        if p.mass is not None and p.mass <= 0:
+            add("hard", "physics", p.name, f"mass must be positive, got {p.mass}")
+        if p.density is not None and p.density <= 0:
+            add("hard", "physics", p.name, f"density must be positive, got {p.density}")
+
+    for m in model.materials:
+        if m.friction is not None and not 0.0 <= m.friction <= 2.0:
+            add("hard", "physics", m.name, f"friction {m.friction} is outside 0..2")
+        if m.restitution is not None and not 0.0 <= m.restitution <= 1.0:
+            add("hard", "physics", m.name, f"restitution {m.restitution} is outside 0..1")
 
     for j in model.joints:
         if j.part not in parts:
@@ -131,6 +159,10 @@ def validate(model: ArticulatedModel) -> dict:
         if abs(j.limit_max - j.limit_min) < 1e-6:
             add("hard", "articulation_sanity", j.part,
                 f"degenerate limits (min={j.limit_min}, max={j.limit_max}) — cannot move")
+        if j.type == "revolute" and j.origin == (0.0, 0.0, 0.0):
+            add("soft", "joint_origin", j.part,
+                "revolute joint leaves origin at (0,0,0) — state the hinge point, or every "
+                "downstream consumer has to re-derive it from the mesh")
         travel = _open_travel(parts[j.part], j)
         if travel[1] > FRONT_Y_TOL:  # build frame: front is -Y
             add("hard", "orientation", j.part,
@@ -183,6 +215,7 @@ def build(model: ArticulatedModel, out_glb: str, texdir: str | None = None):
             )
         else:
             mats[m.name] = bl.make_plain_material(m.name, m.color, m.metallic, m.roughness)
+    contact = {m.name: (m.friction, m.restitution) for m in model.materials}
 
     obs = {}
     for p in model.parts:
@@ -193,6 +226,9 @@ def build(model: ArticulatedModel, out_glb: str, texdir: str | None = None):
             obs[p.name] = bl.add_rounded_box(p.name, p.size, p.at, mat)
         else:
             obs[p.name] = bl.add_box(p.name, p.size, p.at, mat)
+        friction, restitution = contact.get(p.material, (None, None))
+        bl.set_physics(obs[p.name], mass=p.mass, density=p.density,
+                       friction=friction, restitution=restitution)
 
     scene = bpy.context.scene
     revolute, prismatic = [], []
@@ -203,7 +239,11 @@ def build(model: ArticulatedModel, out_glb: str, texdir: str | None = None):
         if j.type == "revolute":  # put the origin on the hinge line so the swing pivots correctly
             ob = bl.join_parts([ob], j.part, j.origin)
             obs[j.part] = ob
-        bl.set_articulation(ob, j.type, tuple(j.axis), j.limit_min, j.limit_max)
+        # The pivot is STATED, not left to be recovered from the node transform downstream.
+        bl.set_articulation(ob, j.type, tuple(j.axis), j.limit_min, j.limit_max,
+                            origin=tuple(j.origin) if j.type == "revolute" else None,
+                            damping=j.damping, friction=j.friction,
+                            effort=j.effort, velocity=j.velocity)
         ai, sign = _principal(j.axis)
         if j.type == "revolute":
             revolute.append((ob, sign * j.limit_max, ai))

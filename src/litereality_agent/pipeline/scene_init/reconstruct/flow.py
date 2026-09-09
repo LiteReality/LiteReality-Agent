@@ -171,6 +171,19 @@ def run_procedural_for_scan(
     plan["status"] = "ok" if proc.returncode == 0 else f"exit_{proc.returncode}"
     glbs = sorted(p.name for p in config.reconstruct_dir(scan).glob("*/*.glb"))
     plan["generated"] = len(glbs)
+
+    # Physics, while the recipe is still the thing to fix. An object that leaves this stage with
+    # no mass, no inertia and no collider is one the room export has to invent all three for.
+    if not dry_run and glbs:
+        from litereality_agent.models.object_generation.sim.pipeline import compile_directory
+
+        sim = compile_directory(config.reconstruct_dir(scan))
+        plan["sim"] = {k: v for k, v in sim.items() if k != "rows"}
+        print(f"[{label}] physics: {sim['ok']}/{sim['objects']} compiled, "
+              f"{sim['passed']} passed the gate, {sim['failed']} failed, {sim['errors']} errored",
+              flush=True)
+        telemetry.event(f"{label}_physics", scan=scan, **plan["sim"])
+
     telemetry.event(f"{label}_done", scan=scan, status=plan["status"], generated=len(glbs))
     return plan
 
