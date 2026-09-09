@@ -1,10 +1,12 @@
 # System modules
 
-We break down the compelent of the pipeline that converting real world scans into simmulation-ready 3D enviroments. This is not a 10 steps pipeline but The the split are four developing prupose, while the entire system in intergated and multi-stage loop checking to ensure a highqautiy, resulable simluation enviroments for robotic trianing
+These are the components of the pipeline that turns a real-world scan into a simulation-ready 3D
+environment. The ten below are a split for development purposes, not ten sequential steps — the
+system is one integrated, multi-stage loop that keeps checking itself, so that what comes out is a
+high-quality, reusable environment for robot training.
 
-
-The system splits into the ten modules below. Every update should tie to exactly one of them — if
-a change doesn't have an obvious home here, the map is wrong and should be fixed first.
+Every update should tie to exactly one module. If a change has no obvious home here, the map is
+wrong and should be fixed first.
 
 ```text
 LiteReality
