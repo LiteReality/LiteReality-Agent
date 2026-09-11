@@ -17,10 +17,15 @@ An open-source, end-to-end toolkit for turning real-world scans into simulation-
   <img src="https://img.shields.io/badge/Technical%20Report-coming%20soon-lightgrey">
 </p>
 
-<p align="center">
-  <img src="assets/demo.jpg" width="80%"
-       alt="RGBD scan on the left, agentic reconstruction on the right">
-</p>
+<table align="center" width="100%">
+  <tr>
+    <td width="50%"><img src="assets/office_scan-recon-sim.gif" width="100%"
+        alt="Office: RGBD scan, agent reconstruction, then a MuJoCo shake test"></td>
+    <td width="50%"><img src="assets/kitchen_scan-recon-sim.gif" width="100%"
+        alt="Kitchen: RGBD scan, agent reconstruction, then a MuJoCo shake test"></td>
+  </tr>
+</table>
+<p align="center"><sub><b>RGBD scan → agent reconstruction → MuJoCo.</b> One fixed camera through all three stages. The last stage is a shake test at 5.5 m/s² @ 1.5 Hz: every object is a rigid body with mass, colliders and joints.</sub></p>
 
 ## News
 
