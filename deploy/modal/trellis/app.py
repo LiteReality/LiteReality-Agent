@@ -12,8 +12,8 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "litereality-trellis"
-FUNCTION_NAME = "generate"
+APP_NAME = "litereality-trellis"  # included into `litereality` by deploy/modal/app.py
+FUNCTION_NAME = "trellis"
 MODEL_VOLUME = "litereality-trellis-models"
 REMOTE_REPO_ROOT = Path("/root")
 WEIGHTS_ROOT = Path("/models")

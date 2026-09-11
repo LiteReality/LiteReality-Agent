@@ -241,7 +241,7 @@ def _check_hosted_dino(*, embed: bool) -> None:
              env=("MODAL_TOKEN_ID", "ak-<your-token-id>",
                   "with MODAL_TOKEN_SECRET; create at modal.com/settings/tokens"))
         return
-    app = os.environ.get("MODAL_DINO_APP") or "litereality-dino"
+    app = os.environ.get("MODAL_DINO_APP") or "litereality"
     if not _deep():
         ok(f"{what} hosted on Modal ({app})  [config check only — SANITY_DEEP=1 to call it]")
         return
@@ -467,8 +467,8 @@ def main() -> int:
             ok("Modal TRELLIS app set (cloud gen3d)")
         else:
             warn("no MODAL_TRELLIS_APP — reconstruction has no cloud gen3d and needs a local GPU env.",
-                 env=("MODAL_TRELLIS_APP", "litereality-trellis",
-                      "deploy deploy/modal/trellis from the shared workspace; or use a local GPU"))
+                 env=("MODAL_TRELLIS_APP", "litereality",
+                      "deploy deploy/modal/app.py from the shared workspace; or use a local GPU"))
 
     if scan:
         print(f"── scan: {scan} ──")

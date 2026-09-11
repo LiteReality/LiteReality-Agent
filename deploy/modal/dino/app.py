@@ -6,8 +6,8 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "litereality-dino"
-FUNCTION_NAME = "infer"
+APP_NAME = "litereality-dino"  # included into `litereality` by deploy/modal/app.py
+FUNCTION_NAME = "dino"
 MODEL_VOLUME = "litereality-dino-models"
 WEIGHTS_ROOT = Path("/models")
 

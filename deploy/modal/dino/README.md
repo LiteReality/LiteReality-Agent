@@ -7,7 +7,7 @@ requests run. Public Hugging Face weights are cached in the `litereality-dino-mo
 Deploy into whichever workspace the active profile names:
 
 ```bash
-MODAL_PROFILE=<profile> modal deploy --env main deploy/modal/dino/app.py
+MODAL_PROFILE=<profile> modal deploy --env main deploy/modal/app.py  (deploys trellis and dino together)
 ```
 
 Configure the pipeline by setting `MODAL_PROFILE` to that same profile; `MODAL_DINO_APP`,
