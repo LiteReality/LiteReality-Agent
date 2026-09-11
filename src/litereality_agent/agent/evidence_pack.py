@@ -148,8 +148,8 @@ def build(authoring_root: Path, scan_dir: Path, surface_ref: Path | None, *, she
         try:
             import sys
             sys.path.insert(0, str(helpers))
-            from read_scan import Scan  # type: ignore
             import contact_sheets  # type: ignore
+            from read_scan import Scan  # type: ignore
             contact_sheets.build(Scan(str(scan_dir)), str(pack / "contact_sheets"))
             shutil.rmtree(helpers / "__pycache__", ignore_errors=True)
         except Exception as exc:  # noqa: BLE001 — sheets are a convenience, never a reason to fail

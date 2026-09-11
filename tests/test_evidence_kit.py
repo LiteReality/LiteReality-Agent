@@ -19,10 +19,10 @@ from litereality_agent import evidence_kit
 
 KIT = Path(evidence_kit.__file__).parent
 sys.path.insert(0, str(KIT))
-from read_scan import Scan  # noqa: E402
+import contact_sheets  # noqa: E402
 import measure  # noqa: E402
 import rectify  # noqa: E402
-import contact_sheets  # noqa: E402
+from read_scan import Scan  # noqa: E402
 
 W, H, DW, DH = 640, 480, 160, 120
 FX = 500.0
@@ -69,7 +69,9 @@ def scan(tmp_path_factory) -> Path:
         (d / f"frame_{i:05d}.json").write_text(json.dumps({
             "frame_index": i, "cameraPoseARFrame": pose.flatten().tolist(), "intrinsics": K.flatten().tolist()}))
         Image.fromarray(rng.integers(0, 255, (H, W, 3), dtype=np.uint8)).save(d / f"frame_{i:05d}.jpg")
-        kd = K.copy(); kd[0, :] *= DW / W; kd[1, :] *= DH / H
+        kd = K.copy()
+        kd[0, :] *= DW / W
+        kd[1, :] *= DH / H
         depth = _render_depth(pose, kd, (DW, DH))
         Image.fromarray((depth * 1000).astype(np.uint16)).save(d / f"depth_{i:05d}.png")
         Image.fromarray(np.full((DH, DW), 2, dtype=np.uint8)).save(d / f"conf_{i:05d}.png")
@@ -108,7 +110,8 @@ def test_triangulate_recovers_a_point_seen_twice(scan):
     X = np.array([0.5, 0.3, DESK_Z_ARKIT])   # Blender world (x, y=-z_arkit, z=height)
     obs = []
     for i in (0, 1):
-        M = np.linalg.inv(S.pose_blender(i)); K = S.K(i)
+        M = np.linalg.inv(S.pose_blender(i))
+        K = S.K(i)
         c = M @ np.append(X, 1.0)
         obs.append((i, (K[0, 0] * c[0] / -c[2] + K[0, 2], K[1, 1] * -c[1] / -c[2] + K[1, 2])))
     t = measure.triangulate(S, obs)
@@ -145,7 +148,8 @@ def test_contact_sheets_cover_every_frame(scan, tmp_path):
 
 def test_evidence_pack_is_self_contained(scan, tmp_path):
     from litereality_agent.agent import evidence_pack
-    stitches = tmp_path / "surface_ref"; stitches.mkdir()
+    stitches = tmp_path / "surface_ref"
+    stitches.mkdir()
     pack = evidence_pack.build(tmp_path / "authoring", scan, stitches)
     assert (pack / "README.md").is_file() and "Rx(+90)" in (pack / "README.md").read_text()
     assert (pack / "scan").is_symlink() and (pack / "scan" / "pointcloud.pcd").is_file()
@@ -159,9 +163,13 @@ def test_evidence_pack_is_self_contained(scan, tmp_path):
 def test_the_pack_finds_the_raw_capture_behind_a_usdz_only_link(scan, tmp_path):
     """scene.json's capture link can be the usdz-only input dir; the frames are under roots.scans."""
     from litereality_agent.agent import evidence_pack
-    scene = tmp_path / "Office"; scene.mkdir()
-    usdz_only = scene / "usdz_files"; usdz_only.mkdir(); (usdz_only / "room.usdz").write_bytes(b"")
-    scans_root = tmp_path / "scans_uploaded"; scans_root.mkdir()
+    scene = tmp_path / "Office"
+    scene.mkdir()
+    usdz_only = scene / "usdz_files"
+    usdz_only.mkdir()
+    (usdz_only / "room.usdz").write_bytes(b"")
+    scans_root = tmp_path / "scans_uploaded"
+    scans_root.mkdir()
     (scans_root / "Office").symlink_to(scan)
     (scene / "scene.json").write_text(json.dumps({"scan": "Office", "roots": {"scans": str(scans_root)}}))
     assert evidence_pack.resolve_scan(usdz_only, scene) == scans_root / "Office"
@@ -171,6 +179,7 @@ def test_the_pack_finds_the_raw_capture_behind_a_usdz_only_link(scan, tmp_path):
 
 def test_a_pack_without_frames_is_refused(tmp_path):
     from litereality_agent.agent import evidence_pack
-    empty = tmp_path / "usdz_only"; empty.mkdir()
+    empty = tmp_path / "usdz_only"
+    empty.mkdir()
     with pytest.raises(FileNotFoundError):
         evidence_pack.build(tmp_path / "a", empty, None, sheets=False)

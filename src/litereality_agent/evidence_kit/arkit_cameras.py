@@ -16,7 +16,11 @@ Conventions (verified against this dataset):
 If you build the scene in the ARKit frame instead, apply the same Rx(90) to your geometry, or set
 C = Matrix.Identity(4) below — just be consistent, the renders must line up with the photographs.
 """
-import json, math, os, re
+import json
+import math
+import os
+import re
+
 import bpy
 from mathutils import Matrix
 

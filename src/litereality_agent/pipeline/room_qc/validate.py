@@ -48,8 +48,10 @@ def _load(preview: Path) -> tuple[list[dict], dict, dict]:
 
 def _footprint_overlap(a: dict, b: dict) -> float:
     """Fraction of a's xy footprint that lies over b's."""
-    ax0, ay0 = a["bbox_min"][:2]; ax1, ay1 = a["bbox_max"][:2]
-    bx0, by0 = b["bbox_min"][:2]; bx1, by1 = b["bbox_max"][:2]
+    ax0, ay0 = a["bbox_min"][:2]
+    ax1, ay1 = a["bbox_max"][:2]
+    bx0, by0 = b["bbox_min"][:2]
+    bx1, by1 = b["bbox_max"][:2]
     ox = max(0.0, min(ax1, bx1) - max(ax0, bx0))
     oy = max(0.0, min(ay1, by1) - max(ay0, by0))
     area = max(1e-9, (ax1 - ax0) * (ay1 - ay0))

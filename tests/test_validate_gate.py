@@ -58,9 +58,11 @@ def test_box_overlaps_are_advisory_and_skip_support_pairs():
 
 
 def test_the_verdict_blocks_on_support_but_not_on_boxes(tmp_path: Path):
-    room = tmp_path / "room"; room.mkdir()
+    room = tmp_path / "room"
+    room.mkdir()
     (room / "Room.py").write_text("SHELL = {}\n")
-    prev = tmp_path / "room_preview"; prev.mkdir()
+    prev = tmp_path / "room_preview"
+    prev.mkdir()
     chair = _obj("Chair0", "chair", (0.5, 0.3, 0.0), (1.0, 0.9, 0.9))
     mug = _obj("Mug0", "mug", (0.2, 0.2, 0.80), (0.28, 0.28, 0.90), rests_on="Table0")
     (prev / "room_layout.json").write_text(json.dumps(_layout([FLOOR, TABLE, chair, mug])))

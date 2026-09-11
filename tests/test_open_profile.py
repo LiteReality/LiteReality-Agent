@@ -30,6 +30,7 @@ def test_the_scripted_profiles_still_format_with_the_extra_fields():
 
 def test_entrypoint_defaults_budgets_per_profile(monkeypatch):
     import sys
+
     from litereality_agent.pipeline.realism_authoring.author import entrypoint
 
     seen = {}
