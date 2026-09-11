@@ -236,9 +236,14 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
     )
 
     assert result.ok
-    assert [module for module, _, _ in calls] == [
+    modules = [module for module, _, _ in calls]
+    assert modules[:4] == [
         "litereality_agent.pipeline.realism_authoring.author.entrypoint",
         "litereality_agent.pipeline.realism_authoring.author.refine_objects",
         "litereality_agent.pipeline.realism_authoring.author.materials",
         "litereality_agent.pipeline.realism_authoring.author.quality",
     ]
+    # After the passes, the gate: a build (nothing here produced room_preview/) so it has
+    # something to judge. The gate itself only runs once a layout exists, which the fake
+    # build does not write — so the build is the last call here.
+    assert modules[4:] == ["litereality_agent.room_ops.compile.build_from_room"]
