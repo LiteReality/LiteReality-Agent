@@ -526,11 +526,13 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     evidence: Path | None = None
     if profile == "open":
         from litereality_agent.agent import evidence_pack
-        evidence = evidence_pack.build(room.parent, Path(scan), surface_ref)
+        # room = <scene>/realism_authoring/room, so the scene package is two levels up.
+        evidence = evidence_pack.build(room.parent, Path(scan), surface_ref, scene_dir=room.parents[1])
         if provider is None and not (os.environ.get("LR_AUTHOR_PROVIDER") or os.environ.get("LR_AGENT_PROVIDER")):
             provider = "codex"       # the brief was written for, and measured on, gpt-6 via Codex
     fills = dict(stitch_lines=stitch_lines, scan=scan, surface_list=", ".join(surfaces), rhythm=RHYTHM,
-                 evidence=str(evidence) if evidence else "", n_frames=_n_frames(Path(scan)),
+                 evidence=str(evidence) if evidence else "",
+                 n_frames=_n_frames(evidence / "scan" if evidence else Path(scan)),
                  python=sys.executable, blender=_blender_bin(),
                  scratch=str(scratch_at) if scratch_at else str(room.parent / "_scratch"))
     prompt = PROFILES.get(profile, PROMPT).format(**fills)

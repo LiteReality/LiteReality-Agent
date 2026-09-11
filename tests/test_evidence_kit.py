@@ -154,3 +154,23 @@ def test_evidence_pack_is_self_contained(scan, tmp_path):
     assert "2 photographs" in (pack / "README.md").read_text()
     # idempotent: a second build keeps the pack
     assert evidence_pack.build(tmp_path / "authoring", scan, stitches) == pack
+
+
+def test_the_pack_finds_the_raw_capture_behind_a_usdz_only_link(scan, tmp_path):
+    """scene.json's capture link can be the usdz-only input dir; the frames are under roots.scans."""
+    from litereality_agent.agent import evidence_pack
+    scene = tmp_path / "Office"; scene.mkdir()
+    usdz_only = scene / "usdz_files"; usdz_only.mkdir(); (usdz_only / "room.usdz").write_bytes(b"")
+    scans_root = tmp_path / "scans_uploaded"; scans_root.mkdir()
+    (scans_root / "Office").symlink_to(scan)
+    (scene / "scene.json").write_text(json.dumps({"scan": "Office", "roots": {"scans": str(scans_root)}}))
+    assert evidence_pack.resolve_scan(usdz_only, scene) == scans_root / "Office"
+    pack = evidence_pack.build(scene / "realism_authoring", usdz_only, None, scene_dir=scene, sheets=False)
+    assert (pack / "scan" / "frame_00000.json").is_file()
+
+
+def test_a_pack_without_frames_is_refused(tmp_path):
+    from litereality_agent.agent import evidence_pack
+    empty = tmp_path / "usdz_only"; empty.mkdir()
+    with pytest.raises(FileNotFoundError):
+        evidence_pack.build(tmp_path / "a", empty, None, sheets=False)

@@ -20,6 +20,7 @@ not a symlink, so a run directory stays self-describing after the package moves 
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -67,14 +68,67 @@ Every photograph, upright, numbered — look at all of them before building anyt
 """
 
 
+def has_capture(d: Path) -> bool:
+    """A raw RoomPlan capture: frame_NNNNN.jpg + .json pairs (depth, cloud and usdz beside them)."""
+    try:
+        return any(f.startswith("frame_") and f.endswith(".json") for f in os.listdir(d))
+    except OSError:
+        return False
+
+
+def resolve_scan(scan_dir: Path, scene_dir: Path | None = None) -> Path:
+    """The RAW capture for a scene — which is not always what the pipeline calls the capture.
+
+    `scene.json`'s `capture` link can point at the usdz-only input dir (Office_room's does:
+    `input/usdz_files`, one file), and `input/rgbd/` is the pipeline's own split layout
+    (image/ depth/ intrinsic/ extrinsic/), not the frame_NNNNN.* the kit reads. The raw scan
+    lives under the scans root recorded in scene.json (`roots.scans/<scan>`), or wherever
+    `LITEREALITY_SCAN` points. A pack without frames is worse than no pack — the brief promises
+    depth and a cloud — so this raises rather than linking whatever it was handed."""
+    tried = []
+    for cand in _scan_candidates(Path(scan_dir), scene_dir):
+        tried.append(str(cand))
+        if has_capture(cand):
+            return cand
+    raise FileNotFoundError(
+        "no raw capture (frame_NNNNN.json) found for the evidence pack; looked in: " + ", ".join(tried))
+
+
+def _scan_candidates(scan_dir: Path, scene_dir: Path | None):
+    yield scan_dir
+    env = os.environ.get("LITEREALITY_SCAN")
+    if env:
+        yield Path(env)
+    if scene_dir is not None:
+        sj = Path(scene_dir) / "scene.json"
+        try:
+            meta = json.loads(sj.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            meta = {}
+        name = meta.get("scan") or Path(scene_dir).name
+        root = (meta.get("roots") or {}).get("scans")
+        if root:
+            yield Path(root) / name
+        src = (meta.get("capture") or {}).get("source")
+        if src:
+            yield Path(src)
+            yield Path(src).parent / name
+    try:
+        from litereality_agent.settings import settings
+        yield settings.resolved_scans_dir() / (Path(scene_dir).name if scene_dir else scan_dir.name)
+    except Exception:  # noqa: BLE001 — settings are optional here
+        pass
+
+
 def build(authoring_root: Path, scan_dir: Path, surface_ref: Path | None, *, sheets: bool = True,
-          force: bool = False) -> Path:
+          force: bool = False, scene_dir: Path | None = None) -> Path:
     """Create `<authoring_root>/evidence` and return it. Idempotent unless `force`."""
     from litereality_agent import evidence_kit
 
     pack = Path(authoring_root) / "evidence"
-    if pack.is_dir() and not force and (pack / "README.md").is_file():
+    if pack.is_dir() and not force and (pack / "README.md").is_file() and has_capture(pack / "scan"):
         return pack
+    scan_dir = resolve_scan(Path(scan_dir), scene_dir)
     pack.mkdir(parents=True, exist_ok=True)
 
     _link(pack / "scan", Path(scan_dir))
