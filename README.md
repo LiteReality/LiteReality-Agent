@@ -25,10 +25,12 @@ An open-source, end-to-end toolkit for turning real-world scans into simulation-
         alt="Kitchen: RGBD scan, agent reconstruction, then a MuJoCo shake test"></td>
   </tr>
 </table>
-<p align="center"><sub><b>RGBD scan → agent reconstruction → MuJoCo.</b> One fixed camera through all three stages. The last stage is a shake test at 5.5 m/s² @ 1.5 Hz: every object is a rigid body with mass, colliders and joints.</sub></p>
+<p align="center"><sub><b>RGBD scan → agent reconstruction → MuJoCo.</b> </sub></p>
 
 ## News
 
+- 🤖 **2026-09-12 — Simulation-ready release.** Every reconstructed room now loads as a MuJoCo scene:
+  objects are rigid bodies with mass, colliders and joints, and the whole room exports to URDF and MJCF.
 - ⚙️ **2026-09-09 — Procedural reconstruction with sim-ready physics.** Articulated objects now carry
   their own mass, inertia, colliders and joints, following
   [Articraft](https://github.com/articraftresearch/Articraft), and export to URDF and MJCF.
