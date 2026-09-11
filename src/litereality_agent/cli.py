@@ -175,9 +175,11 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
              "a low value returns an unfinished room and says so",
     )
     parser.add_argument(
-        "--author-profile", choices=["base", "detail", "simulation"],
+        "--author-profile", choices=["base", "detail", "simulation", "open"],
         help="authoring brief: base (materials + wall fixtures), detail (multi-part fixtures), "
-             "simulation (adds real lighting, small objects, and support declarations)",
+             "simulation (adds real lighting, small objects, and support declarations), "
+             "open (a goal brief with the full evidence pack + measurement helpers and the validation "
+             "gate; defaults to the codex/gpt-6 harness)",
     )
     parser.add_argument("--author-turns", type=int, help="authoring hard turn backstop (default 140)")
 

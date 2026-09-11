@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -354,7 +356,120 @@ fixtures, and a list of every small object with what it rests on or is attached 
 """
 
 
-PROFILES = {"base": PROMPT, "detail": DETAIL_PROMPT, "simulation": SIMULATION_PROMPT}
+# The `open` profile — a BRIEF, not a script. Written after measuring what a one-shot GPT-6 run did
+# with nothing but the raw scan and a page of intent: it reviewed every photograph first, measured
+# desk and shelf heights from the depth maps, triangulated chair positions from silhouettes,
+# rebuilt after its own intersection/contact audit, and came back closer to the photos on layout
+# and fixtures than our scripted pass — which had told it what to read, in what order, and what
+# not to touch. The three profiles above prescribe a cadence because a step-budgeted model on
+# Claude Code banked cheap calls and edited at the end; that is a harness problem, not a modelling
+# one, and it is solved here by GATES on the result rather than rules on the process. What the
+# infra still contributes, and the brief leans on: the pipeline's reconstructed and articulated
+# assets, `fetch_material`'s photo-matched PBR library, the render-vs-photo tool, and the
+# validation gate. What the model gets that it did not have: the evidence pack (raw frames, depth,
+# point cloud, RoomPlan usdz, stitches) with measurement helpers, and the freedom to use them.
+OPEN_PROMPT = """\
+You are rebuilding a REAL room from a phone scan, alone and self-paced, and the result has to
+pass two tests: a person who was in the room would recognise it from your renders, and a physics
+engine could pick it up and simulate it without being told anything else.
+
+THE ROOM. `Room.py` in your working directory builds it: a deterministic assembler plus a `SHELL`
+dict (walls, openings, floor/ceiling heights, one measured box per piece of furniture) and the
+pipeline's reconstructed assets — some are neural meshes of the actual objects, some are
+procedural and ARTICULATED (doors, windows, lift tops with real joints). Read `Room.md` first: it
+explains the helper API, `group_fixture(name, category, parts, rests_on=…, attached_to=…)`, and
+how materials are assigned. Build it once before you change anything, and render it from a few
+capture cameras so you know your starting point.
+
+THE EVIDENCE — `{evidence}/` beside the room. READ ITS README FIRST; it states every data format
+and the coordinate conventions once.
+  contact_sheets/   every photograph, upright. Look at ALL of them before you build anything and
+                    write down what the room contains — the scan's boxes say where the big pieces
+                    are; the photographs say what is actually there (the coat on the door, the
+                    heater under the desk, what is on each shelf).
+  stitches/         one head-on image per wall/floor/ceiling: the material references.
+  scan/             the raw capture: {n_frames} RGB frames with poses and intrinsics, LiDAR depth
+                    and confidence per frame, the point cloud, RoomPlan's room.usdz.
+  helpers/          plain python you import in your own scripts (`sys.path.insert(0, "{evidence}/helpers")`):
+                    `measure.probe_depth` (the 3D point under a photo pixel), `measure.triangulate`
+                    (a feature clicked in 2+ photos), `measure.height_profile` (the horizontal
+                    surfaces inside a footprint — desk and shelf heights), `measure.pcd_slice` (a
+                    plan of everything at one height), `rectify.rectify_region` (a screen, board or
+                    picture lifted out of a photo as a texture), and `arkit_cameras` (inside
+                    Blender: the capture cameras, already present in Room.py as cam_NNNNN).
+Measure, don't guess: a desk height, a shelf elevation, a table diameter, a monitor width are all
+in the depth maps and the cloud. Where LiDAR fails (dark fabric, glass, thin legs) triangulate
+from two photographs.
+
+WHAT A FINISHED ROOM HAS. Everything below is an observation to make from the photographs, not a
+thing to invent — author what THIS room contains.
+• The shell right: walls, openings, floor and ceiling heights corrected where the scan is clearly
+  wrong against the photos and the measurements. Conservative and metric.
+• Every surface with the material the photographs show. Use `fetch_material` for anything with
+  visible texture — carpet, wood, tile, fabric, brick, plaster grain, acoustic tile: it returns
+  a REAL captured PBR set (diffuse/roughness/normal) recoloured to your measured colour, and it
+  is the single biggest difference between a render and a photograph. Flat colour only for
+  genuinely flat modern paint, and you should be able to say why from the photo.
+• The real light: the luminaires you can see (geometry AND a Blender light, matched on colour
+  temperature and intensity) and the window as a light if it is one. Render and look — a first
+  guess at light is usually a stop out.
+• The fixtures the scan cannot see: sockets, switches, trunking, radiators and heaters, boards,
+  shelves and what sits on them, blinds, hooks and what hangs on them, the air conditioner,
+  cables. Multi-part, at their measured positions, never flush slabs; you may lift screens,
+  boards and pictures out of the photographs with `rectify_region`.
+• The small objects on every placeable surface, in roughly the positions the photographs show,
+  at real sizes, not tidied — axis-alignment is the giveaway of a generated room.
+• The pipeline's assets kept: do not delete or flatten an articulated object or replace a
+  reconstructed mesh with a box. You MAY correct a furniture box's position, size or yaw when
+  your measurements show the scan got it wrong — say so in your summary with the measurement.
+
+SIMULATION READINESS is not an extra. Every object you add is ONE named group with a declared
+support — `rests_on="Table1"` / `rests_on="Floor0"` / `attached_to="Wall3"` — and the claim must be
+true in the geometry: the underside on the surface, read from the support's top, not placed by
+eye. Nothing interpenetrates anything.
+
+THE GATE. Before you finish, build the room and run
+    {python} -m litereality_agent.pipeline.room_qc.validate --room .
+It checks every support claim against the geometry, the real-mesh contacts, and that the
+articulated objects survived. Fix what it reports and run it again; the harness runs it once
+more after you and records the verdict. A room that fails the gate is not finished.
+
+TOOLS. `fetch_material(query, name, color_hex, pattern_strength)`; `render(target)` for 'room' or
+a wall, paired with the real photo — look at it; `critic(images, goal)`; `select_views(target)`;
+`check_collisions()`. Beyond the tools you have a shell, Blender
+(`{blender}`, headless: `blender -b --python script.py`) and python with numpy/PIL/open3d/
+trimesh; write whatever scripts you need under `{scratch}` — measurement, comparison, contact
+sheets of your own renders next to the photographs. Everything that changes the room goes into
+`Room.py` (and its `materials/`), so a fresh rebuild reproduces it; helper scripts do not.
+
+HOW YOU WORK IS YOURS to decide, with two conditions: `Room.py` must compile after every save, and
+save as you go — a run that stops keeps only what is on disk. Finish with a summary: what you
+measured and what it changed, the material per surface, the lights, the fixtures and objects with
+their supports, the gate's verdict, and what you could not do.
+"""
+
+PROFILES = {"base": PROMPT, "detail": DETAIL_PROMPT, "simulation": SIMULATION_PROMPT, "open": OPEN_PROMPT}
+
+# Budgets the open brief needs: the one-shot run that motivated it took 69 tool calls to a finished,
+# self-audited room, and our scripted pass was cut at 56 by a quota. 300 with a 400-turn backstop
+# is room to measure, build, render, gate and fix; the profile does not micromanage the cadence, so
+# it must not starve it either.
+OPEN_STEP_BUDGET = 300
+OPEN_MAX_TURNS = 400
+
+
+def _n_frames(scan: Path) -> int:
+    try:
+        return sum(1 for f in os.listdir(scan) if f.startswith("frame_") and f.endswith(".json"))
+    except OSError:
+        return 0
+
+
+def _blender_bin() -> str:
+    d = os.environ.get("LITEREALITY_BLENDER", "")
+    if d:
+        return str(Path(d) / "blender")
+    return shutil.which("blender") or "blender"
 
 
 def room_compiles(room: Path) -> str:
@@ -403,11 +518,22 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     surfaces = surfaces_for(room)
     stitches = [surface_ref / f"{s}_stitched.jpg" for s in surfaces]
     stitch_lines = "\n".join(f"  - {s} (head-on): {p}" for s, p in zip(surfaces, stitches) if p.is_file())
-    prompt = PROFILES.get(profile, PROMPT).format(stitch_lines=stitch_lines, scan=scan,
-                                                  surface_list=", ".join(surfaces), rhythm=RHYTHM)
     # Images the model MAKES to look at are evidence; give it somewhere durable to put them.
     from litereality_agent.agent import scratch
     scratch_at = scratch.bind(near=room)
+    # The open brief hands the model the whole capture plus measurement helpers, packed once
+    # beside the room (see evidence_pack). The other profiles keep to stitches + raw frames.
+    evidence: Path | None = None
+    if profile == "open":
+        from litereality_agent.agent import evidence_pack
+        evidence = evidence_pack.build(room.parent, Path(scan), surface_ref)
+        if provider is None and not (os.environ.get("LR_AUTHOR_PROVIDER") or os.environ.get("LR_AGENT_PROVIDER")):
+            provider = "codex"       # the brief was written for, and measured on, gpt-6 via Codex
+    fills = dict(stitch_lines=stitch_lines, scan=scan, surface_list=", ".join(surfaces), rhythm=RHYTHM,
+                 evidence=str(evidence) if evidence else "", n_frames=_n_frames(Path(scan)),
+                 python=sys.executable, blender=_blender_bin(),
+                 scratch=str(scratch_at) if scratch_at else str(room.parent / "_scratch"))
+    prompt = PROFILES.get(profile, PROMPT).format(**fills)
     prompt += scratch.prompt_line()
     from litereality_agent.agent.tool_narration import describe_tools_line
     prompt += describe_tools_line()
@@ -419,6 +545,9 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
             str(os.path.realpath(surface_ref))}
     if scratch_at is not None:
         dirs.add(str(scratch_at))
+    if evidence is not None:
+        dirs.add(str(evidence))
+        dirs.add(str(os.path.realpath(scan)))
     # Step budget: a graceful landing at `step_budget` tool-calls (wind-down then stop). The Claude
     # Code harness enforces it with a PreToolUse hook; Codex has no such hook and degrades to a hard
     # stop (`providers.describe` says which you got). `--max-turns` is the backstop below it.
@@ -461,8 +590,13 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
     tr = AgentTrace("author", room=room, scan=os.environ.get("LITEREALITY_SCAN"))
     # The prompt is the other half of "what happened": a tool choice only makes sense
     # against what the session was actually asked to do, and profiles change that.
-    tr.start(model=model, room=str(room), profile=profile, stitches=len(present),
-             max_turns=max_turns, scratch=str(scratch_at) if scratch_at else None, prompt=prompt)
+    # `model` is the ROLE's Claude-vocabulary name; what actually ran is the harness's business
+    # (Codex takes its own). Record both, or a gpt-6 session is filed under claude-opus-5 — which is
+    # exactly what happened to the Office_room run this profile was measured against.
+    used = harness.effective_model(spec) if hasattr(harness, "effective_model") else model
+    tr.start(model=used, role_model=model, room=str(room), profile=profile, stitches=len(present),
+             max_turns=max_turns, scratch=str(scratch_at) if scratch_at else None, prompt=prompt,
+             evidence=str(evidence) if evidence else None, provider=harness.name)
     # Kept OUTSIDE the room: the room dir is copied and scanned wholesale downstream, and a
     # stray second Room-ish file in it is a trap.
     last_good = room.parent / ".room_checkpoint.py"
@@ -510,6 +644,18 @@ async def run(room: Path, surface_ref: Path, scan: Path, model: str, max_turns: 
             stopped = m.stopped
             if m.is_error:
                 terminal_error = result_text or "provider reported a terminal error"
+            # The harness's own transcript, kept with ours: the normalised trace records what
+            # it could see, and on Codex that is not everything (file reads are internal, and
+            # the images shown to the model only appear in the rollout).
+            rollout = (m.raw or {}).get("rollout") if isinstance(m.raw, dict) else None
+            if rollout and tr.ok and tr.path:
+                try:
+                    dst = tr.path.parent / f"{tr.path.stem}.codex_rollout.jsonl"
+                    dst.write_bytes(Path(rollout).read_bytes())
+                    print(f"   codex rollout → {dst}", flush=True)
+                    tr.think(f"[codex rollout] {dst}")
+                except OSError as exc:
+                    print(f"   ⚠ could not keep the codex rollout ({exc})", flush=True)
     except Exception as exc:  # noqa: BLE001 — including the SDK's turn-cap Exception
         # Running out of turns is not a failed run. `Room.py` is edited IN PLACE, so by this
         # point the session's work is already on disk; raising here threw it away, because

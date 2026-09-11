@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 from litereality_agent.agent import scratch
-from litereality_agent.agent.author import PROFILES, run
+from litereality_agent.agent.author import OPEN_MAX_TURNS, OPEN_STEP_BUDGET, PROFILES, run
 from litereality_agent.pipeline.realism_authoring import arguments as stage_args
 
 
@@ -26,14 +26,14 @@ def main() -> None:
     parser.add_argument(
         "--max-turns",
         type=int,
-        default=140,
-        help="hard SDK backstop; the step budget lands the run before this",
+        default=None,
+        help="hard SDK backstop; the step budget lands the run before this (default 140; open: 400)",
     )
     parser.add_argument(
         "--step-budget",
         type=int,
-        default=int(os.environ.get("AUTHOR_STEPS", "100")),
-        help="tool-call budget with graceful wind-down (0 disables)",
+        default=None,
+        help="tool-call budget with graceful wind-down (0 disables; default $AUTHOR_STEPS or 100; open: 300)",
     )
     parser.add_argument(
         "--step-reserve",
@@ -54,6 +54,13 @@ def main() -> None:
         help="agent harness (default: $LR_AUTHOR_PROVIDER, else $LR_AGENT_PROVIDER, else claude)",
     )
     args = stage_args.bind(parser.parse_args(), need=("room", "surface_ref", "scan"))
+    # The open brief does not pace the model, so it must not be starved either: its defaults are
+    # the budgets a finished, self-audited one-shot room actually needed, not the scripted pass's.
+    if args.max_turns is None:
+        args.max_turns = OPEN_MAX_TURNS if args.profile == "open" else 140
+    if args.step_budget is None:
+        env = os.environ.get("AUTHOR_STEPS")
+        args.step_budget = int(env) if env else (OPEN_STEP_BUDGET if args.profile == "open" else 100)
 
     try:
         rc = asyncio.run(

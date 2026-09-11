@@ -39,9 +39,11 @@ def run(context: RunContext, options: dict) -> StageResult:
         "--surface-ref", context.authoring_root / "surface_ref",
         "--scan", context.capture_dir,
         "--profile", options.get("profile", "base"),
-        "--max-turns", options.get("max_turns", 140),
-        "--step-budget", options.get("step_budget", 100),
     ]
+    # Budgets only when asked for: the entrypoint knows each profile's own defaults.
+    for key, flag in (("max_turns", "--max-turns"), ("step_budget", "--step-budget")):
+        if options.get(key):
+            args += [flag, options[key]]
     rc, log = run_module(
         context,
         "litereality_agent.pipeline.realism_authoring.author.entrypoint",
@@ -72,6 +74,10 @@ def run(context: RunContext, options: dict) -> StageResult:
             f"Raise it with --author-steps."
         )
 
+    # THE GATE. Whatever the brief asked for, the question at the end is the same: could a physics
+    # engine take this room? Answered from the build and written down beside it. It cannot run
+    # before a compile has produced room_preview/, and the polish passes below rebuild, so it runs
+    # last (see the end of this function).
     passes: list[tuple[str, str, list[object]]] = []
     if options.get("refine_objects"):
         refine_args: list[object] = [
@@ -130,4 +136,38 @@ def run(context: RunContext, options: dict) -> StageResult:
     refinement = context.authoring_root / "obj_refine"
     if refinement.is_dir():
         result.artifacts["object_refinement"] = str(refinement)
+
+    preview = context.authoring_root / "room_preview"
+    # The gate reads the BUILD. A session that rendered has one; a session that stopped early
+    # or only edited may not, and an unbuilt room is exactly the one whose claims nobody checked.
+    # `Room.py` is valid Python here (author.run guarantees it), so build it once (~1-2 min).
+    if not (preview / "room_layout.json").is_file() or \
+            (preview / "room_layout.json").stat().st_mtime < (context.authored_room / "Room.py").stat().st_mtime:
+        build_rc, build_log = run_module(
+            context, "litereality_agent.room_ops.compile.build_from_room",
+            ["--room", context.authored_room, "--out", preview],
+            log_name="author_build",
+        )
+        if build_rc:
+            result.warnings.append(f"could not build the authored room for the validation gate (exit {build_rc}); see {build_log}")
+    if (preview / "room_layout.json").is_file():
+        gate_rc, gate_log = run_module(
+            context,
+            "litereality_agent.pipeline.room_qc.validate",
+            ["--room", context.authored_room, "--preview", preview],
+            log_name="validate",
+        )
+        report = preview / "validation.json"
+        if report.is_file():
+            result.artifacts["validation"] = str(report)
+        if gate_rc == 2:
+            try:
+                n = len(json.loads(report.read_text(encoding="utf-8")).get("failing", []))
+            except (OSError, ValueError):
+                n = "?"
+            result.warnings.append(
+                f"validation gate FAILED with {n} blocking finding(s) — floating/sunk objects, "
+                f"undeclared supports, mesh clashes or lost articulation; see {report}")
+        elif gate_rc:
+            result.warnings.append(f"validation gate could not run (exit {gate_rc}); see {gate_log}")
     return result
