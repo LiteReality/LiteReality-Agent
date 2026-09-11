@@ -21,7 +21,7 @@ class ModalDinoService:
         self,
         *,
         app_name: str,
-        function_name: str = "infer",
+        function_name: str = "dino",
         environment_name: str = "main",
         profile: str | None = None,
         credentials: tuple[str, str] | None = None,

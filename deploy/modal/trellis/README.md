@@ -13,7 +13,7 @@ modal profile list
 modal profile activate <name>
 modal profile current
 
-modal deploy --env main deploy/modal/trellis/app.py
+modal deploy --env main deploy/modal/app.py  (deploys trellis and dino together)
 ```
 
 ## No Hugging Face account is needed

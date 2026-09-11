@@ -55,8 +55,8 @@ def test_registry_prefers_modal_dino(monkeypatch):
 
     assert isinstance(registry.detection_from_settings(settings), Service)
     assert captured == {
-        "app_name": "litereality-dino",
-        "function_name": "infer",
+        "app_name": "litereality",
+        "function_name": "dino",
         "environment_name": "main",
         "profile": "huangzhening",
         "credentials": None,

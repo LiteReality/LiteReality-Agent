@@ -166,8 +166,8 @@ def test_registry_selects_modal_trellis(monkeypatch):
 
     assert isinstance(registry.gen3d_from_settings(settings), Service)
     assert captured == {
-        "app_name": "litereality-trellis",
-        "function_name": "generate",
+        "app_name": "litereality",
+        "function_name": "trellis",
         "environment_name": "main",
         "profile": "huangzhening",
         "credentials": None,

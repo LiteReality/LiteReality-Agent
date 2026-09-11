@@ -171,7 +171,7 @@ def test_chair_repair_uses_hosted_trellis_when_configured(tmp_path, monkeypatch)
     ref = tmp_path / "chair.png"
     ref.write_bytes(b"image")
     out = tmp_path / "Chair0.glb"
-    settings = SimpleNamespace(modal_trellis_app="litereality-trellis")
+    settings = SimpleNamespace(modal_trellis_app="litereality")
     monkeypatch.setattr("litereality_agent.settings.load_settings", lambda: settings)
 
     class Hosted:

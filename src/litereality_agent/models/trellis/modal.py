@@ -51,7 +51,7 @@ class ModalTrellisService:
         self,
         *,
         app_name: str,
-        function_name: str = "generate",
+        function_name: str = "trellis",
         environment_name: str = "main",
         profile: str | None = None,
         credentials: tuple[str, str] | None = None,
