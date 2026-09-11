@@ -116,10 +116,38 @@ def _author_options(args) -> dict:
         "materials": polish or getattr(args, "materials", False),
         "quality_pass": getattr(args, "quality_pass", False),
     }
-    steps = getattr(args, "author_steps", None)
-    if steps:
-        opts["step_budget"] = steps
+    # Only pass what was actually given, so the stage keeps its own defaults for the rest.
+    for name, key in (("author_profile", "profile"), ("author_steps", "step_budget"),
+                      ("author_turns", "max_turns")):
+        value = getattr(args, name, None)
+        if value:
+            opts[key] = value
     return opts
+
+
+def _reconstruct_options(args) -> dict:
+    """Options for the reconstruct stage.
+
+    `chair_qc` gates `mesh_qc.chair_repair`, which is the only thing that looks at what TRELLIS
+    actually produced: it flags fused floor slabs, squat blobs and floating fragments, then repairs
+    a bad cluster by regenerating its reference image and re-running TRELLIS. The stage has always
+    forwarded `--chair-qc` to `scene_init.flow`, but nothing here ever set it, so every chair went
+    into a room ungated. It is ON by default — the checks are local geometry and cost nothing, and
+    only a cluster that FAILS pays for a regeneration.
+    """
+    return {"chair_qc": getattr(args, "chair_qc", True)}
+
+
+def _add_reconstruct_options(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--chair-qc", dest="chair_qc", action="store_true", default=True,
+        help="QC generated chair meshes and regenerate the ones that fail (default)",
+    )
+    group.add_argument(
+        "--no-chair-qc", dest="chair_qc", action="store_false",
+        help="skip chair mesh QC — a bad chair then ships as-is",
+    )
 
 
 def _add_author_options(parser: argparse.ArgumentParser) -> None:
@@ -146,6 +174,14 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
         help="tool-call budget for the authoring session (default 100); "
              "a low value returns an unfinished room and says so",
     )
+    parser.add_argument(
+        "--author-profile", choices=["base", "detail", "simulation", "open"],
+        help="authoring brief: base (materials + wall fixtures), detail (multi-part fixtures), "
+             "simulation (adds real lighting, small objects, and support declarations), "
+             "open (a goal brief with the full evidence pack + measurement helpers and the validation "
+             "gate; defaults to the codex/gpt-6 harness)",
+    )
+    parser.add_argument("--author-turns", type=int, help="authoring hard turn backstop (default 140)")
 
 
 def _simulate_options(args) -> dict:
@@ -272,7 +308,8 @@ def _run(args) -> int:
             through=args.through,
             force=set(args.force or ()),
             strict=args.strict,
-            options={"author": _author_options(args), "publish": _publish_options(args),
+            options={"reconstruct": _reconstruct_options(args),
+                     "author": _author_options(args), "publish": _publish_options(args),
                      "simulate": _simulate_options(args)},
         )
         rc = _print_results(results)
@@ -292,6 +329,7 @@ def _stage(args) -> int:
             strict=args.strict,
             options={
                 "skip_image_generation": args.skip_image_generation,
+                **_reconstruct_options(args),
                 **_author_options(args),
                 **_publish_options(args),
                 **_simulate_options(args),
@@ -377,6 +415,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="append", choices=stages)
     run.add_argument("--strict", action="store_true")
     run.add_argument("--output-root")
+    _add_reconstruct_options(run)
     _add_author_options(run)
     _add_live_options(run)
     _add_publish_options(run)
@@ -390,6 +429,7 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--strict", action="store_true")
     stage.add_argument("--skip-image-generation", action="store_true")
     stage.add_argument("--output-root")
+    _add_reconstruct_options(stage)
     _add_author_options(stage)
     _add_live_options(stage)
     _add_publish_options(stage)

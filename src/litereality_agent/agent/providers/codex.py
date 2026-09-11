@@ -42,6 +42,7 @@ import os
 import shutil
 import sys
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from litereality_agent.agent.providers.base import (
     AgentMessage,
@@ -57,6 +58,13 @@ from litereality_agent.agent.providers.base import (
 # result — so the mapping normalises INTO that vocabulary rather than inventing a third one.
 _EDIT_TOOL = "Edit"
 _SHELL_TOOL = "Bash"
+
+# One `codex exec --json` event is one line, and an event carries whole command output — a
+# `cat Room.py` or a stitch listing runs to hundreds of KB. asyncio's StreamReader defaults to a
+# 64 KiB line cap and raises `ValueError: Separator is found, but chunk is longer than limit` on
+# the first line over it, which killed the session a couple of tool calls in and reported success.
+# The cap has to clear the largest event a session can emit, not the typical one.
+_EVENT_LINE_LIMIT = 64 * 1024 * 1024
 
 
 def _toml(value) -> str:
@@ -275,6 +283,7 @@ class CodexHarness:
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=_EVENT_LINE_LIMIT,
         )
 
         counter: dict = {}
@@ -285,6 +294,7 @@ class CodexHarness:
         unparsed = 0
         matched = 0
         usage: dict = {}
+        thread_id = ""
 
         assert proc.stdout is not None
         while True:
@@ -305,6 +315,8 @@ class CodexHarness:
             if event.get("type") == "turn.completed":
                 turns += 1
                 usage = event.get("usage") or usage
+            if event.get("type") == "thread.started":
+                thread_id = str(event.get("thread_id") or "")
             blocks = _normalise(event, counter)
             if blocks:
                 matched += 1
@@ -349,6 +361,10 @@ class CodexHarness:
                 "returncode": proc.returncode,
                 "usage": usage,
                 "stderr": err.decode(errors="replace")[-2000:],
+                "thread_id": thread_id,
+                # Codex's own transcript: every message, tool call, tool output and — unlike our
+                # normalised view — every image content item the model was actually shown.
+                "rollout": rollout_path(thread_id),
             },
         )
 
@@ -357,6 +373,17 @@ def _effort() -> str:
     # Higher reasoning effort is noticeably better on geometry/material work — see the note in
     # models/object_generation/generate.py where this default came from.
     return os.environ.get("LR_CODEX_EFFORT", "high")
+
+
+def rollout_path(thread_id: str) -> str | None:
+    """Codex writes `~/.codex/sessions/YYYY/MM/DD/rollout-<stamp>-<thread_id>.jsonl`. Find it."""
+    if not thread_id:
+        return None
+    root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions"
+    if not root.is_dir():
+        return None
+    hits = sorted(root.glob(f"*/*/*/rollout-*-{thread_id}.jsonl"))
+    return str(hits[-1]) if hits else None
 
 
 def _codex_model() -> str | None:
