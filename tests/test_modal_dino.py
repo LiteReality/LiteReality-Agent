@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
 from litereality_agent.models.grounding_dino.modal import ModalDinoService
 from litereality_agent.settings import LiteRealitySettings
 
@@ -36,7 +38,8 @@ def test_embed_uses_embedding_model():
     assert client.inputs[0]["model_id"] == "embedder"
 
 
-def test_registry_prefers_modal_dino(monkeypatch):
+@pytest.mark.parametrize("backend", ["auto", "modal"])
+def test_registry_prefers_modal_dino(monkeypatch, backend):
     from litereality_agent.models import registry
 
     captured = {}
@@ -48,6 +51,8 @@ def test_registry_prefers_modal_dino(monkeypatch):
     monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
     settings = LiteRealitySettings(
         _env_file=None,
+        dino_backend=backend,
+        dino_python="/unused/local/python",
         modal_profile="huangzhening",
         dino_model="detector",
         dino_embed_model="embedder",
@@ -77,7 +82,7 @@ def test_registry_selects_modal_dino_from_tokens_alone(monkeypatch):
 
     monkeypatch.setattr("litereality_agent.models.grounding_dino.modal.ModalDinoService", Service)
     settings = LiteRealitySettings(
-        _env_file=None, MODAL_TOKEN_ID="ak-1", MODAL_TOKEN_SECRET="as-2"
+        _env_file=None, dino_backend="auto", MODAL_TOKEN_ID="ak-1", MODAL_TOKEN_SECRET="as-2"
     )
 
     assert isinstance(registry.detection_from_settings(settings), Service)

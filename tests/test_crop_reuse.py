@@ -90,6 +90,56 @@ def test_new_frames_invalidate_crops(work_root):
     assert crop_objects.crops_current(SCAN) is False
 
 
+def test_layout_moves_keep_original_image_geometry_and_cache(work_root):
+    from litereality_agent.pipeline.scene_init.layout.adapter import apply_to_objects
+
+    scene = config.scene_data_dir(SCAN)
+    entries = [{"object_type": "Table0", "position": [1, 0.5, -1],
+                "bbox": [1, 1, 1], "rotation": 0,
+                "top_down_rect": [[0.5, -0.5], [1.5, -0.5], [1.5, -1.5], [0.5, -1.5]]}]
+    original = pickle.loads(pickle.dumps(entries))
+    (scene / "objects.pkl").write_bytes(pickle.dumps(entries))
+    _stamp()
+    for x in (1.1, 1.2):
+        apply_to_objects(entries, {"objects": {"Table0": {
+            "center": [x, 1, 0.5], "size": [0.9, 1, 1], "yaw": 0}}})
+        (scene / "objects.pkl").write_bytes(pickle.dumps(entries))
+        assert crop_objects.crops_current(SCAN)
+        assert crop_objects._load_scene_data(SCAN)[1] == original
+    assert entries[0]["position"][0] == 1.2
+
+
+def test_replaced_camera_pose_invalidates_evidence(work_root):
+    folder = config.input_root() / "rgbd" / SCAN / "extrinsic"
+    folder.mkdir()
+    pose = folder / "extrinsic_0.npy"
+    pose.write_bytes(b"before")
+    _stamp()
+    pose.write_bytes(b"changed camera pose")
+    assert not crop_objects.crops_current(SCAN)
+
+
+def test_recrop_archives_old_ids_and_changes_generation(work_root, monkeypatch):
+    _stamp()
+    parsed = config.parsed_images_dir(SCAN)
+    (parsed / "StorageRun0").mkdir()
+
+    def generate(*args, **kwargs):
+        (parsed / "Table0").mkdir(parents=True)
+
+    monkeypatch.setattr(crop_objects, "process_object_images", generate)
+    monkeypatch.setattr(crop_objects, "process_all_folders", lambda *args: None)
+    monkeypatch.setattr(crop_objects, "prepare_camera_data_for_retrieval", lambda *args: None)
+    crop_objects.crop(SCAN)
+    first = (parsed / crop_objects.STAMP).read_bytes()
+    assert crop_objects.crops_current(SCAN)
+    assert not (parsed / "StorageRun0").exists()
+    assert list((parsed.parent / ".crop-history" / SCAN).glob("*/StorageRun0"))
+    crop_objects.crop(SCAN)
+    assert (parsed / crop_objects.STAMP).read_bytes() != first
+    assert crop_objects.crops_current(SCAN)
+
+
 def test_empty_crop_dir_is_not_reusable(work_root):
     """A stamp with no object folders beside it means an interrupted run, not a finished one."""
     _stamp()

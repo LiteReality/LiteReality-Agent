@@ -30,9 +30,11 @@ def _handle(req: dict) -> dict:
             import torch
 
             cuda = bool(torch.cuda.is_available())
+            gpu = torch.cuda.get_device_name(0) if cuda else None
         except Exception:
             cuda = False
-        return {"ok": True, "model": inference.default_model_id(), "cuda": cuda}
+            gpu = None
+        return {"ok": True, "model": inference.default_model_id(), "cuda": cuda, "gpu": gpu}
     if op == "detect":
         from PIL import Image
 

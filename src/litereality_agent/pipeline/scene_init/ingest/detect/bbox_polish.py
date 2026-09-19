@@ -215,19 +215,14 @@ def polish(scan: str, *, force: bool = False) -> dict:
     which is what you want after new crops or a different detector.
     """
     marker = marker_path(scan)
-    if not force and marker.is_file():
-        try:
-            previous = json.loads(marker.read_text(encoding="utf-8"))
-            previous["reused"] = True
-            print(f"[bbox-polish] reusing previous refinement "
-                  f"({previous.get('refined_total', 0)} boxes) — --force-bbox-polish to redo",
-                  flush=True)
-            return previous
-        except (OSError, ValueError):
-            pass  # unreadable marker: fall through and redo it properly
-    # Resolve DINO once through the model registry. Hosted Modal wins when configured; an isolated
-    # local interpreter remains available for Linux workstations. The light pipeline process never
-    # needs to import torch in either case.
+    import hashlib
+
+    from ..crop.crop_objects import STAMP
+
+    stamp = config.parsed_images_dir(scan) / STAMP
+    key = hashlib.sha256(stamp.read_bytes()).hexdigest() if stamp.is_file() else None
+    # Install the shared backend even when refinement is cached: chair embeddings and opening
+    # detection run later in this process and must use the same hosted/local selection.
     if not detector.using_service():
         from litereality_agent.models.registry import detection_from_settings
         from litereality_agent.settings import load_settings
@@ -238,7 +233,18 @@ def polish(scan: str, *, force: bool = False) -> dict:
         if service is not None:
             detector.set_service(service)
             print(f"  [bbox_polish] DINO backend: {service.name}", flush=True)
-
+    if not force and marker.is_file():
+        try:
+            previous = json.loads(marker.read_text(encoding="utf-8"))
+            if key is None or previous.get('crop_fingerprint') != key:
+                raise ValueError('crop inputs changed')
+            previous["reused"] = True
+            print(f"[bbox-polish] reusing previous refinement "
+                  f"({previous.get('refined_total', 0)} boxes) — --force-bbox-polish to redo",
+                  flush=True)
+            return previous
+        except (OSError, ValueError):
+            pass  # unreadable marker: fall through and redo it properly
     if not detector.available():
         print(
             "  [bbox_polish] torch/transformers unavailable — skipping refinement "
@@ -294,6 +300,7 @@ def polish(scan: str, *, force: bool = False) -> dict:
     )
     summary = {
         "scan": scan,
+        "crop_fingerprint": key,
         "objects": results,
         "refined_total": total,
         "dropped_total": dropped,

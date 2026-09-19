@@ -329,4 +329,9 @@ def extract(raw_scan_folder: str, scan: str) -> Path:
     opening_count = sum(len(v.get("type", [])) for v in wall_holes.values() if isinstance(v, dict))
     print(f"{Colors.GREEN}✓{Colors.RESET} {len(objects)} objects, {opening_count} openings")
     save_scene_data(scan, walls, objects, wall_holes, floor)
+    root = config.scene_data_dir(scan)
+    # Extraction is the only stage allowed to reset the immutable measurements.
+    shutil.copy2(root / "objects.pkl", root / "objects.extracted.pkl")
+    for name in ("layout_baseline.json", "merge_review.json"):
+        (root / name).unlink(missing_ok=True)
     return config.scene_data_dir(scan)

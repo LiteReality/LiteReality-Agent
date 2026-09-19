@@ -81,8 +81,8 @@ def test_repair_never_returns_a_worse_room(seed):
     assert score(out, shell, held) <= score(shell, shell, held)
 
 
-def test_the_stage_never_raises_into_the_pipeline(tmp_path):
-    """A layout failure must degrade to an unrepaired run, never take init down."""
+def test_repair_helper_returns_failures_for_the_acceptance_gate(tmp_path):
+    """The helper returns diagnostics; the required pipeline gate rejects failed results."""
     (tmp_path / "objects.pkl").write_bytes(b"not a pickle")
     result = run_layout("broken", scene_data_dir=tmp_path)
     assert "error" in result or "skipped" in result
@@ -93,6 +93,21 @@ def test_the_stage_never_raises_into_the_pipeline(tmp_path):
 def test_the_stage_can_be_switched_off(tmp_path, monkeypatch):
     monkeypatch.setenv("LR_LAYOUT", "0")
     assert run_layout("anything", scene_data_dir=tmp_path).get("disabled")
+
+
+def test_agent_resize_reseats_against_wall_without_obsolete_attachment_api():
+    from litereality_agent.pipeline.scene_init.layout.agent import apply_proposals
+
+    shell = room({"Storage0": box(2.0, 0.15, d=1.0)})
+    assert errors(shell)
+    fixed, decisions = apply_proposals(shell, [{
+        "object_id": "Storage0", "action": "resize", "size": [0.8, 0.5, 0.8],
+        "wall": "Wall0",
+    }])
+    assert decisions[0]["accepted"]
+    assert not errors(fixed)
+    assert fixed["objects"]["Storage0"]["center"][1] == pytest.approx(0.3)
+    assert shell["objects"]["Storage0"]["size"][1] == 1.0
 
 
 def test_objects_pkl_round_trips_through_the_shell(tmp_path):
@@ -204,7 +219,7 @@ def test_a_failed_drawing_does_not_fail_the_repair(tmp_path, monkeypatch):
     """The pkl is already written by the time the plan is drawn. A broken picture is not a broken
     repair, and reporting it as one would send a good room back through init."""
     scene_data(monkeypatch, tmp_path,
-               {"Storage0": box(2.0, 2.0), "Storage1": box(2.05, 2.0)})
+               {"Storage0": box(2.0, 2.0), "Storage1": box(2.6, 2.0)})
     monkeypatch.setattr(report, "render", lambda *args, **kwargs: 1 / 0)
 
     result = run_layout("scan", scene_data_dir=tmp_path)

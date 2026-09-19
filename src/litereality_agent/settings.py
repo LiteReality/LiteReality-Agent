@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -79,6 +79,9 @@ class LiteRealitySettings(BaseSettings):
     image_model: str = Field(default="gpt-image-2", validation_alias="LR_OPENAI_IMAGE_MODEL")
     dino_model: str = Field(
         default="IDEA-Research/grounding-dino-tiny", validation_alias="LR_DINO_MODEL"
+    )
+    dino_backend: Literal["auto", "local", "modal"] = Field(
+        default="auto", validation_alias="LR_DINO_BACKEND"
     )
     dino_embed_model: str = Field(
         default="facebook/dinov2-small", validation_alias="LR_DINO_EMBED_MODEL"
@@ -214,12 +217,14 @@ class LiteRealitySettings(BaseSettings):
             "LR_PROCEDURAL_MODEL": self.procedural_model,
             "LR_OPENAI_IMAGE_MODEL": self.image_model,
             "LR_DINO_MODEL": self.dino_model,
+            "LR_DINO_BACKEND": self.dino_backend,
             "LR_DINO_EMBED_MODEL": self.dino_embed_model,
             "MODAL_TRELLIS_APP": self.modal_trellis_app,
             "MODAL_TRELLIS_FUNCTION": self.modal_trellis_function,
             "MODAL_DINO_APP": self.modal_dino_app,
             "MODAL_DINO_FUNCTION": self.modal_dino_function,
             "MODAL_ENVIRONMENT": self.modal_environment,
+            "MODAL_PROFILE": self.modal_profile,
         }
         values["LR_IMAGE_PROVIDER"] = self.image_provider
         secrets = {

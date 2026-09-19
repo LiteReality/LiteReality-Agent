@@ -35,5 +35,7 @@ from .adjust import check
 from .repair import repair, score
 from .report import render
 from .stage import run_layout
+from .validation import LayoutValidationError, require_valid_layout
 
-__all__ = ["check", "render", "repair", "score", "run_layout"]
+__all__ = ["check", "render", "repair", "score", "run_layout",
+           "LayoutValidationError", "require_valid_layout"]

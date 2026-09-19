@@ -28,6 +28,7 @@ field (``file``, ``mesh_id``, ``rotation``, ``top_down_rect``) exactly as extrac
 
 from __future__ import annotations
 
+import copy
 import math
 import pickle
 from pathlib import Path
@@ -163,6 +164,9 @@ def shell_from_scene_data(scene_data_dir: str | Path, *, thickness: float = 0.16
         # never ran the merge is just a detection with an underscore in it.
         if entry.get("merged_from"):
             objects[object_id]["merged_from"] = list(entry["merged_from"])
+        if entry.get("merged_members"):
+            objects[object_id]["merged_members"] = {
+                m["object_type"]: object_from_entry(m) for m in entry["merged_members"]}
 
     return {"walls": walls, "openings": {}, "objects": objects,
             "floor": {"verts": verts, "faces": faces},
@@ -211,6 +215,19 @@ def _category(object_id: str) -> str:
     return "".join(c for c in object_id if not c.isdigit()).strip("_").lower()
 
 
+def object_from_entry(entry):
+    """Original merge member in the same frame as the current layout."""
+    from .shell import _box_frame, _r
+
+    matrix = _world_matrix({"position": _as_list(entry["position"]),
+                            "bbox": _as_list(entry["bbox"]),
+                            "rotation": entry.get("rotation"), "transform": entry.get("transform")})
+    center, along, width, depth, height = _box_frame(matrix, prefer_long=False)
+    return {"category": _category(entry["object_type"]), "center": [_r(v) for v in center],
+            "size": [_r(width), _r(depth), _r(height)],
+            "yaw": _r(math.degrees(math.atan2(along[1], along[0])), 2)}
+
+
 def apply_to_objects(entries: list[dict], shell: dict[str, Any]) -> dict[str, Any]:
     """Fold a repaired SHELL back into the ``objects.pkl`` list, in place.
 
@@ -218,6 +235,11 @@ def apply_to_objects(entries: list[dict], shell: dict[str, Any]) -> dict[str, An
     SHELL still contains — an object the repair dropped is removed, and nothing is ever added.
     """
     objects = shell.get("objects") or {}
+    present = {entry.get("object_type") for entry in entries}
+    restored = [copy.deepcopy(member) for entry in entries if entry.get("object_type") not in objects
+                for member in entry.get("merged_members", [])
+                if member["object_type"] in objects and member["object_type"] not in present]
+    entries.extend(restored)
     moved, resized, dropped = [], [], []
     kept: list[dict] = []
     for entry in entries:
@@ -227,10 +249,18 @@ def apply_to_objects(entries: list[dict], shell: dict[str, Any]) -> dict[str, An
             dropped.append(object_id)
             continue
         position, bbox = _as_list(entry["position"]), _as_list(entry["bbox"])
+        # Images describe the measured object, not its repaired placement in the output room.
+        entry.setdefault("evidence_geometry", copy.deepcopy({
+            key: entry[key] for key in ("position", "bbox", "rotation", "transform", "top_down_rect")
+            if key in entry}))
         want_position = [repaired["center"][0], repaired["center"][2], -repaired["center"][1]]
         want_bbox = [repaired["size"][0], repaired["size"][2], repaired["size"][1]]
         if math.dist(position[:3], want_position) > 1e-4:
             entry["position"] = np.asarray(want_position, dtype=float)
+            if entry.get("transform") is not None:
+                transform = np.asarray(entry["transform"], dtype=float).reshape(4, 4).copy()
+                transform[3, :3] = want_position
+                entry["transform"] = transform
             moved.append(object_id)
         if any(abs(a - b) > 1e-4 for a, b in zip(bbox[:3], want_bbox)):
             entry["bbox"] = np.asarray(want_bbox, dtype=float)

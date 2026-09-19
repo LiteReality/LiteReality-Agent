@@ -10,6 +10,9 @@ not footprint alone. A wall/upper cabinet projects to the same wall footprint as
 below it but floats a real gap above; fusing the two (the earlier footprint-only test did, via a
 sink that overlaps both) welds a separate object into the run. The vertical gate (see DEFAULT_VGAP)
 keeps stacked-but-separate cabinets apart while still fusing a sink resting on its base cabinet.
+Storage-to-storage merges also require at least 50% shared height (of the shorter member),
+checked across the whole proposed group. Slight vertical overlap is not sufficient evidence that
+a floor cabinet and hanging shelves belong to one object.
 
 This is the fix, and it must run in a specific window: AFTER `extract_scene` writes
 ``objects.pkl`` and BEFORE `crop_objects` reads it, so the crop, the reference image, the
@@ -52,6 +55,10 @@ YAW_TOLERANCE_DEG = 3.0  # boxes must share a yaw to be part of one run
 # to overlap — allowing a small gap so a sink resting on the counter still fuses with its cabinet,
 # while an upper cabinet a real gap above the base does NOT. Override with $LR_BOX_MERGE_VGAP.
 DEFAULT_VGAP = 0.12  # m: max vertical gap between extents still treated as overlapping (touching)
+# Storage units at different elevations remain separate even when their measured boxes touch.
+# A long hanging shelf and a narrow floor cabinet can overlap slightly in height; their union
+# fills the empty space below the shelf and creates false collisions with desks there.
+STORAGE_HEIGHT_OVERLAP = 0.5  # fraction of the shorter storage unit's height
 # Wall gate: two boxes with a WALL BETWEEN THEM are not one counter run, whatever their footprints
 # do. RoomPlan sometimes detects a unit twice and records the second copy far too deep — deep
 # enough to punch through the wall behind it — and that smeared copy then overlaps a genuine unit
@@ -59,6 +66,31 @@ DEFAULT_VGAP = 0.12  # m: max vertical gap between extents still treated as over
 # later stage reads the result as one counter recorded too deep. Set $LR_BOX_MERGE_WALL_GUARD=0
 # to disable. See `_separated_by_wall`.
 WALL_GUARD_EPS = 1e-6  # keeps a shared endpoint from reading as a crossing
+POLICY_VERSION = 2
+
+
+def policy_settings(*, thresh=None, enabled=None):
+    """Inputs that make a saved merge review reusable."""
+    def number(name, default):
+        try:
+            return float(os.environ.get(name, default))
+        except ValueError:
+            return default
+
+    def flag(name):
+        return os.environ.get(name, "1").lower() not in ("0", "false", "no", "")
+
+    return [number("LR_BOX_MERGE_THRESH", DEFAULT_THRESH) if thresh is None else thresh,
+            number("LR_BOX_MERGE_VGAP", DEFAULT_VGAP), flag("LR_BOX_MERGE_WALL_GUARD"),
+            flag("LR_LAYOUT_AGENT"), flag("LR_BOX_MERGE") if enabled is None else enabled]
+
+
+def policy_current(scene_dir):
+    try:
+        saved = json.loads((Path(scene_dir) / "merge_review.json").read_text())
+        return saved.get("policy_version") == POLICY_VERSION and saved.get("settings") == policy_settings()
+    except (OSError, ValueError):
+        return False
 
 
 def _union_obb(members: list[dict]) -> dict:
@@ -147,6 +179,22 @@ def _vertical_gap(a: dict, b: dict) -> float:
     return max(abot, bbot) - min(atop, btop)  # >0 only when there is a gap between the extents
 
 
+def _storage_levels_compatible(members: list[dict]) -> bool:
+    """Storage members must share a substantial height band, even through a bridging box.
+
+    Apply this to the whole proposed group, not just its newest edge: a tall cabinet or sink
+    must not transitively join lower storage to upper shelves. Sink/appliance-to-base merges
+    still use the existing contact allowance; this additional gate is storage-to-storage only.
+    """
+    storage = [m for m in members if str(m.get("object_type", "")).startswith("Storage")]
+    for i, a in enumerate(storage):
+        for b in storage[i + 1:]:
+            shorter = min(float(a["bbox"][1]), float(b["bbox"][1]))
+            if shorter <= 0 or -_vertical_gap(a, b) < STORAGE_HEIGHT_OVERLAP * shorter:
+                return False
+    return True
+
+
 def wall_segments(scene_data_dir: str | Path) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     """This scan's wall centrelines as 2-D segments in the ARKit ground plane (x, z).
 
@@ -212,7 +260,10 @@ def auto_groups(
     """Cluster counter-run boxes that genuinely overlap in 3D (same yaw, footprints, heights).
 
     A pair fuses only when it shares a yaw, its footprints overlap more than `thresh`, AND its
-    vertical extents overlap (or sit within `vgap` of touching). Union-find then fuses transitively
+    vertical extents overlap (or sit within `vgap` of touching). Storage members additionally
+    must share at least half of the shorter member's height across the entire group. This keeps
+    hanging shelves separate from floor cabinets even with slight overlap or a bridging box.
+    Union-find then fuses transitively
     so a real chain — sink over the base cabinet, base cabinet abutting the next base cabinet —
     still merges; the vertical gate is what stops a wall/upper cabinet, whose footprint overlaps but
     which floats a real gap above, from being dragged in through a box between them.
@@ -222,12 +273,13 @@ def auto_groups(
     bridging box overlaps its neighbour on each side perfectly plausibly, and the resulting group
     is no taller than a single cabinet. Omit `walls` and the behaviour is exactly as before.
     """
-    ids = [
+    ids = sorted(
         o["object_type"]
         for o in objs
         if o.get("object_type") and any(str(o["object_type"]).startswith(k) for k in KITCHEN_PREFIXES)
-    ]
+    )
     parent = {i: i for i in ids}
+    members = {i: [i] for i in ids}
 
     def find(x):
         while parent[x] != x:
@@ -242,7 +294,14 @@ def auto_groups(
             if _footprint_overlap(a, b) > thresh and _vertical_gap(a, b) <= vgap:
                 if _separated_by_wall(a, b, walls or []):
                     continue
-                parent[find(ids[i])] = find(ids[j])
+                left, right = find(ids[i]), find(ids[j])
+                if left == right:
+                    continue
+                combined = members[left] + members[right]
+                if not _storage_levels_compatible([by[k] for k in combined]):
+                    continue
+                parent[left] = right
+                members[right] = combined
     groups: dict = {}
     for i in ids:
         groups.setdefault(find(i), []).append(i)
@@ -302,6 +361,7 @@ def apply_merges(
         # that runs next needs to know this unit was assembled rather than detected — otherwise it
         # reads a run swallowing its own cabinet as a duplicate and deletes the run.
         entry["merged_from"] = list(present)
+        entry["merged_members"] = [by[m] for m in present]
         new_entries.append(entry)
         consumed.update(present)
         merged[name] = present
@@ -327,21 +387,16 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
     """
     from litereality_agent.pipeline.scene_init import paths as config
 
-    if enabled is None:
-        enabled = os.environ.get("LR_BOX_MERGE", "1") not in ("0", "false", "no")
+    policy = policy_settings(thresh=thresh, enabled=enabled)
+    thresh, vgap, guard, use_agent, enabled = policy
     if not enabled:
         print("  [box-merge] disabled ($LR_BOX_MERGE=0)", flush=True)
-        return {"merged": {}, "skipped": {}, "disabled": True}
-    if thresh is None:
-        try:
-            thresh = float(os.environ.get("LR_BOX_MERGE_THRESH", DEFAULT_THRESH))
-        except ValueError:
-            thresh = DEFAULT_THRESH
-    try:
-        vgap = float(os.environ.get("LR_BOX_MERGE_VGAP", DEFAULT_VGAP))
-    except ValueError:
-        vgap = DEFAULT_VGAP
-    guard = os.environ.get("LR_BOX_MERGE_WALL_GUARD", "1") not in ("0", "false", "no")
+        result = {"merged": {}, "skipped": {}, "disabled": True}
+        scene = config.scene_data_dir(scan)
+        if (scene / "objects.pkl").is_file():
+            (scene / "merge_review.json").write_text(json.dumps({
+                "policy_version": POLICY_VERSION, "settings": policy, "result": result}, indent=2))
+        return result
 
     try:
         pkl = config.scene_data_dir(scan) / "objects.pkl"
@@ -349,6 +404,17 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
             print(f"  [box-merge] no objects.pkl at {pkl} — skipping", flush=True)
             return {"merged": {}, "skipped": {}}
         objs = pickle.load(open(pkl, "rb"))
+        review_file = pkl.parent / "merge_review.json"
+        if review_file.is_file():
+            prior = json.loads(review_file.read_text())
+            if (prior.get("policy_version") == POLICY_VERSION and "result" in prior
+                    and prior.get("settings") == policy):
+                active = {o['object_type']: o['merged_from'] for o in objs if o.get('merged_from')}
+                if active:
+                    arm_enlarged_crops(active)
+                return {**prior['result'], 'reused': True}
+            if any(o.get("merged_from") for o in objs):
+                raise ValueError("Merge policy changed; re-extract the capture before reviewing merges")
         # Walls are read from the same scene_data folder the objects came from, so this needs no
         # new plumbing and no ordering change: `walls.pkl` is written by extraction, before the
         # window this function runs in.
@@ -356,9 +422,25 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
         if guard and not walls:
             print("  [box-merge] wall guard inactive — no wall centrelines for this scan", flush=True)
         detected = auto_groups(objs, thresh, vgap, walls)
+        decisions = []
+        if detected and use_agent:
+            from ..layout import adapter, evidence
+
+            shell = adapter.shell_from_scene_data(pkl.parent)
+            evidence.prepare(scan, pkl.parent, shell)
+            approved = []
+            for members in detected:
+                decision = evidence.review_merge(shell, members, pkl.parent)
+                decisions.append({"members": members, **decision})
+                if decision["action"] == "merge":
+                    approved.append(members)
+            detected = approved
         if not detected:
             print(f"  [box-merge] no overlapping counter runs (thresh={thresh})", flush=True)
-            return {"merged": {}, "skipped": {}}
+            result = {"merged": {}, "skipped": {}, "decisions": decisions}
+            review_file.write_text(json.dumps({"policy_version": POLICY_VERSION,
+                                              "settings": policy, "result": result}, indent=2))
+            return result
         taken = {o.get("object_type") for o in objs}
         groups: dict[str, list[str]] = {}
         for mem in detected:
@@ -372,9 +454,12 @@ def merge_for_scan(scan: str, *, thresh: float | None = None, enabled: bool | No
             print(f"  [box-merge] ⚠ skipped {name}: {why}", flush=True)
         if res["merged"]:
             arm_enlarged_crops(res["merged"])
+        res['decisions'] = decisions
+        review_file.write_text(json.dumps({"policy_version": POLICY_VERSION,
+                                          "settings": policy, "result": res}, indent=2))
         return res
     except Exception as exc:  # noqa: BLE001 — telemetry-grade: never break init over a merge
-        print(f"  [box-merge] FAILED (non-fatal, continuing unmerged): {exc}", flush=True)
+        print(f"  [box-merge] FAILED (pipeline must stop): {exc}", flush=True)
         return {"merged": {}, "skipped": {}, "error": str(exc)}
 
 

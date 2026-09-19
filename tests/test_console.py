@@ -44,6 +44,13 @@ def test_no_escape_codes_when_not_a_terminal(piped, capsys):
     assert "9 objects" in out
 
 
+def test_failed_layout_never_displays_a_success_tick(piped, capsys):
+    console.stage_event("layout", "Room", "start", {})
+    console.stage_event("layout", "Room", "failed", {"error": "two clashes remain"})
+    out = capsys.readouterr().out
+    assert "✗" in out and "✓" not in out
+
+
 def test_each_stage_keeps_its_own_colour(tty, capsys):
     """The point of the colours: two adjacent stages must not look alike."""
     for name in ("crop_objects", "object_references", "reconstruct"):
@@ -857,10 +864,23 @@ def test_polish_reuses_a_recorded_run(tmp_path, monkeypatch):
     config.set_scan("Sim")
     marker = bbox_polish.marker_path("Sim")
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(_json.dumps({"scan": "Sim", "refined_total": 29}))
+    import hashlib
+
+    from litereality_agent.pipeline.scene_init.ingest.crop.crop_objects import STAMP
+
+    stamp = config.parsed_images_dir("Sim") / STAMP
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text('{"generation": "test"}')
+    marker.write_text(_json.dumps({"scan": "Sim", "refined_total": 29,
+                                  "crop_fingerprint": hashlib.sha256(stamp.read_bytes()).hexdigest()}))
+    monkeypatch.setattr(bbox_polish.detector, "_SERVICE", None)
+    from litereality_agent.models import registry
+    service = types.SimpleNamespace(name="test-dino")
+    monkeypatch.setattr(registry, "detection_from_settings", lambda settings: service)
 
     out = bbox_polish.polish("Sim")
     assert out["reused"] is True and out["refined_total"] == 29
+    assert bbox_polish.detector._SERVICE is service
 
 
 @pytest.mark.live

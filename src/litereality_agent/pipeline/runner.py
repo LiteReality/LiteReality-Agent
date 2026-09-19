@@ -100,14 +100,22 @@ class PipelineRunner:
                 )
 
             old = prior.get(stage.name)
+            stage_options = dict((options or {}).get(stage.name, {}))
+            cache_options = {key: value for key, value in stage_options.items() if key != "force"}
+            same_options = old is not None and old.get("input_options", {}) == cache_options
+            if old and not same_options:
+                # Enabling DINO on an existing run must reach ingest and invalidate its consumers.
+                for dependent in self.stages[self.stages.index(stage) + 1:]:
+                    prior.pop(dependent.name, None)
+                    completed.discard(dependent.name)
             complete_on_disk = stage.is_complete(context) if stage.is_complete else False
-            if stage.name not in force and old and complete_on_disk:
+            if (stage.name not in force and old and same_options and complete_on_disk
+                    and StageResult.from_dict(old).ok):
                 result = StageResult.from_dict(old)
                 result.status = StageStatus.REUSED
             else:
                 started = time.monotonic()
                 try:
-                    stage_options = dict((options or {}).get(stage.name, {}))
                     if stage.name in force:
                         stage_options.setdefault("force", True)
                     # Several ported stage implementations still read canonical environment
@@ -123,6 +131,7 @@ class PipelineRunner:
             if not result.ok:
                 result.details["fatal"] = bool(stage.required or strict)
             prior[stage.name] = result.to_dict()
+            prior[stage.name]["input_options"] = cache_options
             self._write_state(context, state)
             if result.ok:
                 completed.add(stage.name)
