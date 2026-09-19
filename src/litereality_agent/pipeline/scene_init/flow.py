@@ -111,10 +111,13 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
 
     # 1. scene extraction (skip if already present unless forced)
     telemetry.stage("extract_scene", scan, "start")
-    if args.skip_extract and config.scene_data_complete(scan):
+    policy_current = merge_boxes.policy_current(config.scene_data_dir(scan))
+    # Rebuild legacy merged geometry from the capture, never repair yesterday's bad merge again.
+    stale_merge = config.scene_data_complete(scan) and not policy_current
+    if args.skip_extract and config.scene_data_complete(scan) and not stale_merge:
         print("[extract] reusing existing scene_data")
         telemetry.stage("extract_scene", scan, "reused")
-    elif config.scene_data_complete(scan) and not args.force_extract:
+    elif config.scene_data_complete(scan) and not args.force_extract and not stale_merge:
         print("[extract] scene_data present — reusing (use --force-extract to redo)")
         telemetry.stage("extract_scene", scan, "reused")
     else:
@@ -129,18 +132,24 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # opts out. See scene_init/object_init/merge_boxes.py.
     telemetry.stage("box_merge", scan, "start")
     merge_res = merge_boxes.merge_for_scan(scan)
+    if merge_res.get("error"):
+        raise RuntimeError(f"Box merge failed: {merge_res['error']}")
     telemetry.stage("box_merge", scan, "done", merged=len(merge_res.get("merged", {})))
 
     # 1c. layout repair — settle the LAYOUT while it is still only boxes. Same window as the merge
     # above and for the same reason: after this point every mistake in a box gets paid for
     # repeatedly. A duplicate detection becomes two generated assets; a counter run recorded half a
-    # metre too deep becomes an asset generated at the wrong extent and then squashed to fit; a box
-    # that moves after its crop was cut leaves the reference image describing geometry that no
-    # longer exists. Repairing here costs nothing and the correction propagates to the crop, the
-    # references, the chair clustering and the reconstruction for free.
-    # $LR_LAYOUT=0 opts out; $LR_LAYOUT_AGENT=1 lets it consult the reference photographs.
+    # metre too deep becomes an asset generated at the wrong extent and then squashed to fit.
+    # Repair output placement here, while keeping measured boxes for photographic evidence.
+    # $LR_LAYOUT_AGENT=1 lets it consult the reference photographs. The acceptance gate is
+    # mandatory: disabling repair, a failed check, or residual errors cannot advance to crops.
     telemetry.stage("layout", scan, "start")
     layout_res = layout.run_layout(scan)
+    try:
+        layout.require_valid_layout(scan, layout_res)
+    except layout.LayoutValidationError as exc:
+        telemetry.stage("layout", scan, "failed", error=str(exc))
+        raise
     telemetry.stage("layout", scan, "done",
                     before=layout_res.get("before", 0), after=layout_res.get("after", 0),
                     moved=len(layout_res.get("moved", [])),
@@ -156,8 +165,8 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # still invalidates them.
     telemetry.stage("crop_objects", scan, "start")
     if args.skip_crop:
-        if not config.parsed_images_dir(scan).exists():
-            raise SystemExit(f"--skip-crop but no crops at {config.parsed_images_dir(scan)}")
+        if not crop_objects.crops_current(scan, args.include_walls):
+            raise RuntimeError("--skip-crop requested but crops do not match validated geometry; rerun ingest")
         telemetry.stage("crop_objects", scan, "reused")
     elif crop_objects.crops_current(scan, args.include_walls) and not args.force_crop:
         print("[crop] crops match the current scene data — reusing (use --force-crop to redo)")
@@ -176,6 +185,8 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     if use_dino:
         telemetry.stage("bbox_polish", scan, "start")
         polish_res = bbox_polish.polish(scan, force=args.force_bbox_polish)
+        if polish_res.get("skipped"):
+            raise RuntimeError(f"GroundingDINO requested but skipped: {polish_res['skipped']}")
         telemetry.stage("bbox_polish", scan,
                       "reused" if polish_res.get("reused") else "done",
                       refined=polish_res.get("refined_total", 0))
@@ -218,7 +229,15 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
     # across four runs of the same five chairs) and `cluster_and_generate` rewrites
     # chair_clusters.json unconditionally — so the later stage can overwrite the grouping that
     # ingest committed to and that the references and routing were built against.
-    reuse = args.skip_references and _references_on_disk(scan)
+    from litereality_agent.pipeline.scene_init.ingest.references.fingerprint import reference_inputs
+    reference_stamp = config.work_root() / "reference_inputs.json"
+    reference_key = reference_inputs(scan)
+    references_current = reference_stamp.is_file() and json.loads(reference_stamp.read_text()) == reference_key
+    reuse = args.skip_references and _references_on_disk(scan) and references_current
+    if args.skip_references and not reuse:
+        raise RuntimeError("--skip-references requested but references are stale or incomplete; rerun ingest")
+    if not references_current:
+        args.force_image_generation = True
 
     # 3. object references (non-chair objects)
     telemetry.stage("object_references", scan, "start")
@@ -292,6 +311,7 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
         "scan": scan,
         "raw": str(raw),
         "box_merge": merge_res,
+        "layout": layout_res,
         "objects": obj_result["objects"],
         "chairs": chair_result,
         "openings": opening_result["openings"],
@@ -306,6 +326,8 @@ def _process_scan(scan: str, raw: Path, args: argparse.Namespace) -> dict:
             "traces": str(config.traces_dir(scan)),
         },
     }
+    if not reuse:
+        reference_stamp.write_text(json.dumps(reference_key, indent=2))
 
     full = args.full
     # 6. complexity routing: VLM decides procedural (box geometry) vs trellis (organic) per object

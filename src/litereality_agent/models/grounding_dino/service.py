@@ -19,7 +19,7 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any
 
-from litereality_agent import REPO_ROOT  # worker cwd: the checkout, so relative data paths resolve
+from litereality_agent import REPO_ROOT, SRC_ROOT
 
 
 @dataclass(slots=True)
@@ -41,6 +41,7 @@ class DinoSubprocessService:
         cwd: str | os.PathLike | None = None,
         env: dict[str, str] | None = None,
         start_timeout: float = 180.0,
+        require_cuda: bool = False,
     ) -> None:
         self.python = python or os.environ.get("LR_DINO_PYTHON") or sys.executable
         # default: run the worker as a module under the isolated interpreter
@@ -54,27 +55,51 @@ class DinoSubprocessService:
         self.cwd = str(cwd or REPO_ROOT)
         self.env = env
         self.start_timeout = start_timeout
+        self.require_cuda = require_cuda
         self._proc: subprocess.Popen | None = None
+        self._stderr = None
+        self._info: dict = {}
 
     # -- lifecycle --------------------------------------------------------------
     def _ensure(self) -> None:
         if self._proc is not None and self._proc.poll() is None:
             return
+        self.close()
         environ = {**os.environ, **(self.env or {})}
-        environ.setdefault("PYTHONPATH", self.cwd)
+        # The isolated environment need not install this checkout's application dependencies.
+        environ["PYTHONPATH"] = os.pathsep.join(filter(None, (
+            str(SRC_ROOT), environ.get("PYTHONPATH"),
+        )))
+        # Model-loading progress can fill an unread stderr PIPE and deadlock the worker.
+        self._stderr = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
         self._proc = subprocess.Popen(
             self.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=self._stderr,
             text=True,
             cwd=self.cwd,
             env=environ,
             bufsize=1,
         )
-        hello = self._rpc({"op": "ping"})  # blocks until the model env is importable
-        if not hello.get("ok"):
-            raise RuntimeError(f"DINO worker failed to start: {hello}")
+        try:
+            hello = self._rpc({"op": "ping"})
+            if not hello.get("ok"):
+                raise RuntimeError(f"DINO worker failed to start: {hello}")
+            if self.require_cuda and not hello.get("cuda"):
+                raise RuntimeError("Local DINO requires CUDA, but the selected interpreter "
+                                   f"cannot access it: {self.python}")
+            self._info = hello
+            device = hello.get("gpu") or ("CUDA" if hello.get("cuda") else "non-CUDA")
+            print(f"  [dino] local worker ready: {device}; python={self.python}", flush=True)
+        except Exception:
+            self.close()
+            raise
+
+    def health(self) -> dict:
+        """Check worker/device readiness without loading weights or running inference."""
+        self._ensure()
+        return dict(self._info)
 
     def _rpc(self, req: dict) -> dict:
         assert self._proc and self._proc.stdin and self._proc.stdout
@@ -82,20 +107,29 @@ class DinoSubprocessService:
         self._proc.stdin.flush()
         line = self._proc.stdout.readline()
         if not line:
-            err = self._proc.stderr.read() if self._proc.stderr else ""
+            err = ""
+            if self._stderr:
+                self._stderr.seek(0)
+                err = self._stderr.read()
             raise RuntimeError(f"DINO worker died (no response). stderr tail:\n{err[-800:]}")
         return json.loads(line)
 
     def close(self) -> None:
-        if self._proc is None:
-            return
-        try:
-            if self._proc.stdin:
-                self._proc.stdin.close()
-            self._proc.wait(timeout=5)
-        except Exception:  # noqa: BLE001
-            self._proc.kill()
+        if self._proc is not None:
+            try:
+                if self._proc.stdin:
+                    self._proc.stdin.close()
+                self._proc.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                self._proc.kill()
+                self._proc.wait()
+            finally:
+                if self._proc.stdout:
+                    self._proc.stdout.close()
         self._proc = None
+        if self._stderr is not None:
+            self._stderr.close()
+            self._stderr = None
 
     # -- DetectionService -------------------------------------------------------
     def detect(

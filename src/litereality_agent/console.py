@@ -333,6 +333,8 @@ def stage_event(name: str, scan: str, status: str, data: dict) -> None:
     """Render one stage boundary. Called from `telemetry.stage`; never raises."""
     if not enabled():
         return
+    if status == "failed":
+        status = "error"
     try:
         label, hue, announce, zero_means = STAGES.get(
             name, (name.replace("_", " "), "grey", False, "nothing to do")

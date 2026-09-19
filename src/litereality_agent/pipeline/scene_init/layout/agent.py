@@ -72,25 +72,47 @@ def _context(shell: dict[str, Any], violation, batch_dir: Path) -> dict[str, Any
                                "length": round(length, 3),
                                "gap_to_object": round(measured[0], 3)}
     neighbours = {oid: {"category": o.get("category"), "size": [round(v, 3) for v in o["size"]],
-                        "center": [round(v, 3) for v in o["center"]]}
+                        "center": [round(v, 3) for v in o["center"]], "yaw": o.get("yaw"),
+                        "merged_members": o.get("merged_members", {}),
+                        "reference_images": [str(p) for p in sorted(
+                            (batch_dir / "references" / oid).glob("rank*.jpg"))[:2]]}
                   for oid, o in objects.items()
                   if oid != violation.object
                   and math.dist(o["center"][:2], obj["center"][:2]) < 2.5}
     refs = sorted((batch_dir / "references" / violation.object).glob("rank*.jpg"))[:2]
+    member_refs = {oid: [str(p) for p in sorted(
+        (batch_dir / "references" / oid).glob("rank*.jpg"))[:2]]
+        for oid in obj.get("merged_members", {})}
+    other = objects.get(violation.other)
+    z_overlap = None
+    if other:
+        z_overlap = max(0, min(obj['center'][2] + obj['size'][2] / 2,
+                               other['center'][2] + other['size'][2] / 2)
+                       - max(obj['center'][2] - obj['size'][2] / 2,
+                             other['center'][2] - other['size'][2] / 2))
     return {"object_id": violation.object,
             "object": {"category": obj.get("category"), "size": [round(v, 3) for v in obj["size"]],
                        "center": [round(v, 3) for v in obj["center"]], "yaw": obj.get("yaw")},
             "violation": {"kind": violation.kind, "detail": violation.detail,
-                          "other": violation.other},
+                          "other": violation.other, "vertical_overlap_m": z_overlap},
+            "floor_z": shell.get("floor_z"),
+            "scan_baseline": shell.get("meta", {}).get("scan_baseline", {}).get(violation.object),
+            "previous_attempts": shell.get("meta", {}).get("layout_feedback", {}).get(violation.object, []),
             "walls": near_walls, "neighbours": neighbours,
+            "merged_members": obj.get("merged_members", {}), "member_images": member_refs,
             "reference_images": [str(p) for p in refs]}
 
 
 PROMPT = """You are correcting a 3-D room reconstructed from an iPhone RoomPlan scan.
 
-The object below is back at ITS ORIGINAL SCANNED POSE. A deterministic solver did produce a legal
-arrangement for it, but only by {suspicion} — which a person looking at the room would not accept.
-Its attempt has been undone so you are judging the real measurement, not its guess.
+Review the CURRENT candidate geometry below. It needs review because of {suspicion}.
+Photographs show the captured room; their projected outlines may describe an earlier candidate.
+Use the current numerical geometry, member elevations, and photographs together.
+Different elevations alone do not clear a collision: vertical overlap above 0.05 m is still
+an error. Where the photographs justify a measurement correction, propose it explicitly.
+Previous attempts report rejected edits; use that feedback, do not repeat the same failed edit.
+Total changes from scan_baseline must stay within 0.6 m horizontally, 0.08 m vertically,
+and 15% per dimension for tables/desks/chairs/sofas/beds or 35% for other objects.
 
 {context}
 
@@ -109,9 +131,11 @@ Think about what is actually wrong, the way a person would. Usually it is one of
     wall ids; the geometry will trim and seat it for you
   * it belongs against one wall -> "attach" with that single wall id
   * the measurement is simply right and the violation is the wall's fault -> "none"
+  * merged_members describe separate physical objects (for example hanging shelves and a floor
+    cabinet). Read their member_images too, then use "split" to restore the original members.
 
 Reply with ONLY a JSON object, no prose and no code fence:
-{{"action": "resize" | "translate" | "attach" | "none",
+{{"action": "resize" | "translate" | "attach" | "split" | "none",
   "size":   [x, y, z],       // resize only; metres
   "center": [x, y, z],       // translate only; metres
   "walls":  ["Wall3", "Wall7"],  // attach only; one or two wall ids from the list above
@@ -127,7 +151,7 @@ def propose(shell: dict[str, Any], violation, batch_dir: Path,
             model: str = "sonnet", suspicion: str | None = None) -> dict[str, Any] | None:
     """Ask the model what is wrong with one object. Returns its raw proposal, unvalidated."""
     context = _context(shell, violation, batch_dir)
-    if not context:
+    if not context or not context["reference_images"]:
         return None
     prompt = PROMPT.format(context=json.dumps(context, indent=2), scale=MAX_SCALE,
                            shift=MAX_SHIFT, suspicion=suspicion or "moving it a long way")
@@ -136,7 +160,7 @@ def propose(shell: dict[str, Any], violation, batch_dir: Path,
             ["claude", "-p", prompt, "--output-format", "text", "--model", model,
              "--allowed-tools", "Read"],
             capture_output=True, text=True, timeout=TIMEOUT)
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
         return {"action": "none", "why": "agent timed out"}
     text = (done.stdout or "").strip()
     start, end = text.find("{"), text.rfind("}")
@@ -146,12 +170,15 @@ def propose(shell: dict[str, Any], violation, batch_dir: Path,
         out = json.loads(text[start:end + 1])
     except json.JSONDecodeError:
         return {"action": "none", "why": "invalid json"}
+    if not isinstance(out, dict) or done.returncode:
+        return None
     out["object_id"] = context["object_id"]
     out["wall"] = violation.other
     return out
 
 
-def _reflush(shell: dict[str, Any], object_id: str, prefer: str | None = None) -> None:
+def _reflush(shell: dict[str, Any], object_id: str, prefer: str | None = None,
+             wall_ids: set[str] | None = None) -> None:
     """After a resize, put the unit back against the wall it is installed on.
 
     Shrinking a box about its centre pulls BOTH faces in, so a counter whose depth was over-measured
@@ -160,45 +187,42 @@ def _reflush(shell: dict[str, Any], object_id: str, prefer: str | None = None) -
     the room says it is and its back face belongs on the wall, so the model is asked only for the
     size and the geometry decides the placement that follows from it.
     """
-    from .adjust import _floor_bounds, _floor_triangles
-    from .repair import _flush_to
+    from .repair import _snap_delta
     from .repair import attachments as _attachments
 
     obj = shell["objects"][object_id]
     walls = shell.get("walls") or {}
-    triangles = _floor_triangles(shell)
-    bounds = _floor_bounds(shell)
-    centroid = (bounds[0] + bounds[1]) / 2.0 if bounds is not None else None
-    import numpy as np
-    found = _attachments(obj, walls, triangles, centroid, tol=0.75)
+    found = _attachments(obj, walls, tol=0.75) if wall_ids is None else wall_ids
     # The wall named in the violation goes first. Flushing against whichever attachment happened to
     # be found first put this counter against the wall it was already fine with and left it a
     # quarter of a metre inside the one it was not.
-    found.sort(key=lambda a: a[0] != prefer)
-    for _wid, _heading, wall, _along, inward, _gap in found:
-        start = wall_frame(wall)[0]
-        centre = np.array(obj["center"][:2], float)
-        perp = float(np.dot(centre - start, inward))
-        want = math.copysign(_flush_to(obj, wall, inward), perp if perp else 1.0)
-        moved = centre + inward * (want - perp)
-        obj["center"][0], obj["center"][1] = round(float(moved[0]), 4), round(float(moved[1]), 4)
+    for wall_id in sorted(found, key=lambda name: name != prefer):
+        delta = _snap_delta(obj, walls[wall_id])
+        obj["center"][0] = round(obj["center"][0] + float(delta[0]), 4)
+        obj["center"][1] = round(obj["center"][1] + float(delta[1]), 4)
 
 
 def _bounded(obj, proposal) -> bool:
+    if proposal.get("action") == "split":
+        return bool(obj.get("merged_members"))
     if proposal.get("action") == "attach":
         walls = proposal.get("walls")
-        return isinstance(walls, list) and 1 <= len(walls) <= 2
+        return (isinstance(walls, list) and 1 <= len(walls) <= 2
+                and all(isinstance(wall, str) for wall in walls))
     if proposal.get("action") == "resize":
         want = proposal.get("size")
         if not (isinstance(want, list) and len(want) == 3):
             return False
-        return all(v > 0.05 and abs(v - o) <= MAX_SCALE * o
+        return all(isinstance(v, (int, float)) and math.isfinite(v)
+                   and v > 0.05 and abs(v - o) <= MAX_SCALE * o
                    for v, o in zip(want, obj["size"]))
     if proposal.get("action") == "translate":
         want = proposal.get("center")
         if not (isinstance(want, list) and len(want) == 3):
             return False
-        return math.dist(want[:2], obj["center"][:2]) <= MAX_SHIFT
+        return all(isinstance(v, (int, float)) and math.isfinite(v) for v in want) and (
+            math.dist(want[:2], obj["center"][:2]) <= MAX_SHIFT
+            and abs(want[2] - obj["center"][2]) <= 0.05)
     return False
 
 
@@ -209,7 +233,7 @@ def apply_proposals(shell: dict[str, Any], proposals: list[dict[str, Any]]) -> t
     for proposal in proposals:
         oid = proposal.get("object_id")
         obj = (current.get("objects") or {}).get(oid or "")
-        if obj is None or proposal.get("action") not in ("resize", "translate", "attach"):
+        if obj is None or proposal.get("action") not in ("resize", "translate", "attach", "split"):
             log.append({**proposal, "accepted": False, "reason": "no actionable change"})
             continue
         if not _bounded(obj, proposal):
@@ -217,9 +241,20 @@ def apply_proposals(shell: dict[str, Any], proposals: list[dict[str, Any]]) -> t
             continue
         trial = copy.deepcopy(current)
         target = trial["objects"][oid]
-        if proposal["action"] == "resize":
+        if proposal["action"] == "split":
+            members = target["merged_members"]
+            if any(name in trial["objects"] for name in members):
+                log.append({**proposal, "accepted": False, "reason": "member ID conflict"})
+                continue
+            trial["objects"].pop(oid)
+            trial["objects"].update(copy.deepcopy(members))
+        elif proposal["action"] == "resize":
+            # Preserve actual pre-resize anchors, not every wall within 75 cm of the new box.
+            held = _anchors(current).get(oid, set())
+            if proposal.get("wall") in (current.get("walls") or {}):
+                held.add(proposal["wall"])
             target["size"] = [round(float(v), 4) for v in proposal["size"]]
-            _reflush(trial, oid, proposal.get("wall"))
+            _reflush(trial, oid, proposal.get("wall"), wall_ids=held)
         elif proposal["action"] == "attach":
             # The model names the walls; the geometry does the fitting. Keeping the arithmetic on
             # this side is the whole point — the model is good at "that wardrobe belongs in the
@@ -248,7 +283,9 @@ def apply_proposals(shell: dict[str, Any], proposals: list[dict[str, Any]]) -> t
         # off its wall — so the gate is scoped to everything except the object being edited.
         broke = sum(len(v - held_after.get(k, set()))
                     for k, v in held_before.items() if k != oid)
-        if after < before and broke == 0:
+        depth_before = sum(v.magnitude or 0 for v in check(current) if v.severity == "error")
+        depth_after = sum(v.magnitude or 0 for v in check(trial) if v.severity == "error")
+        if (after, round(depth_after, 4)) < (before, round(depth_before, 4)) and broke == 0:
             current = trial
             log.append({**proposal, "accepted": True,
                         "reason": f"violations {before} -> {after}, no anchor broken"})

@@ -11,11 +11,13 @@ and prepare the camera metadata. Writes, relative to the work root:
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
 import pickle
 import time
+import uuid
 
 from litereality_agent.pipeline.scene_init import paths as config
 from litereality_agent.pipeline.scene_init.ingest.preprocessing.object_images import (
@@ -28,6 +30,14 @@ from litereality_agent.pipeline.scene_init.ingest.preprocessing.object_images im
 # Written beside the crops; records the inputs they were built from. Every reader of
 # parsed_images/<scan>/ iterates directories only, so a file here is inert.
 STAMP = ".crop_inputs.json"
+
+
+def _evidence_objects(objects):
+    """Read immutable scan geometry while preserving current merge/split identities."""
+    result = copy.deepcopy(objects)
+    for entry in result:
+        entry.update(entry.pop("evidence_geometry", {}))
+    return result
 
 
 def _input_fingerprint(scan: str, include_walls: bool) -> dict:
@@ -44,11 +54,19 @@ def _input_fingerprint(scan: str, include_walls: bool) -> dict:
     digests = {}
     for name in ("walls", "objects", "wall_holes", "floor"):
         path = scene_dir / f"{name}.pkl"
-        digests[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-    frames = config.input_root() / "rgbd" / scan / "image"
+        if name == "objects" and path.is_file():
+            with path.open("rb") as handle:
+                evidence = _evidence_objects(pickle.load(handle))
+            data = json.dumps(evidence, sort_keys=True, default=lambda v: v.tolist()).encode()
+            digests[name] = hashlib.sha256(data).hexdigest()
+        else:
+            digests[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+    capture = config.input_root() / "rgbd" / scan
     return {
         "scene_data": digests,
-        "frames": len(list(frames.glob("*.jpg"))) if frames.is_dir() else 0,
+        "capture": [(str(p.relative_to(capture)), p.stat().st_size, p.stat().st_mtime_ns)
+                    for folder in ("image", "intrinsic", "extrinsic", "depth", "confidence")
+                    for p in sorted((capture / folder).glob("*")) if p.is_file()],
         "include_walls": bool(include_walls),
         "enlarged": sorted(filter(None, os.environ.get("LR_ENLARGED_CROP_OBJECTS", "").split(","))),
     }
@@ -68,7 +86,9 @@ def crops_current(scan: str, include_walls: bool = False) -> bool:
         recorded = json.loads(stamp.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
-    return recorded == _input_fingerprint(scan, include_walls)
+    # JSON turns tuples into lists; compare JSON-native values on both sides.
+    return recorded.get("inputs", recorded) == json.loads(json.dumps(
+        _input_fingerprint(scan, include_walls)))
 
 
 def _load_scene_data(scan: str):
@@ -85,6 +105,7 @@ def _load_scene_data(scan: str):
     for path in required.values():
         with path.open("rb") as f:
             loaded.append(pickle.load(f))
+    loaded[1] = _evidence_objects(loaded[1])
     return loaded  # walls, objects, wall_holes, floor
 
 
@@ -94,6 +115,12 @@ def crop(scan: str, include_walls: bool = False) -> None:
     walls, objects, wall_holes, _floor = _load_scene_data(scan)
     # Fingerprint the inputs BEFORE the work, so the stamp records what was actually cropped.
     fingerprint = _input_fingerprint(scan, include_walls)
+    parsed = config.parsed_images_dir(scan)
+    if parsed.exists():
+        history = parsed.parent / '.crop-history' / scan / uuid.uuid4().hex
+        history.parent.mkdir(parents=True, exist_ok=True)
+        parsed.rename(history)
+    # Deleted/renamed merge members must not survive as stale crop directories.
 
     print(f"{Colors.BLUE}[crop]{Colors.RESET} processing object images...")
     process_object_images(scan, walls, objects, wall_holes, include_walls=include_walls)
@@ -105,9 +132,9 @@ def crop(scan: str, include_walls: bool = False) -> None:
     prepare_camera_data_for_retrieval(scan)
 
     # Last, so an interrupted crop leaves no stamp and the next run redoes it.
-    parsed = config.parsed_images_dir(scan)
     parsed.mkdir(parents=True, exist_ok=True)
-    (parsed / STAMP).write_text(json.dumps(fingerprint, indent=2), encoding="utf-8")
+    (parsed / STAMP).write_text(json.dumps({"inputs": fingerprint, "generation": uuid.uuid4().hex},
+                                         indent=2), encoding="utf-8")
 
     print(
         f"{Colors.GREEN}✓{Colors.RESET} crops in input/parsed_images/{scan} ({time.time() - started:.2f}s)"

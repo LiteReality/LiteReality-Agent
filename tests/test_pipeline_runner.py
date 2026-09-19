@@ -102,3 +102,20 @@ def test_single_stage_discovers_existing_prerequisite_artifacts(tmp_path):
     output = PipelineRunner(stages).run_stage(context(tmp_path), "publish")
     assert output.status is StageStatus.COMPLETED
     assert called == ["publish"]
+
+
+def test_enabling_dino_invalidates_cached_ingest_and_consumers(tmp_path):
+    calls = []
+    stages = (
+        Stage("ingest", lambda _, options: calls.append(("ingest", dict(options))) or result("ingest"),
+              is_complete=lambda _: True),
+        Stage("reconstruct", lambda *_: calls.append(("reconstruct", {})) or result("reconstruct"),
+              ("ingest",), is_complete=lambda _: True),
+    )
+    runner = PipelineRunner(stages)
+    runner.run(context(tmp_path))
+    runner.run(context(tmp_path), options={"ingest": {"use_dino": True}})
+    reused = runner.run(context(tmp_path), options={"ingest": {"use_dino": True}})
+    assert calls == [("ingest", {}), ("reconstruct", {}),
+                     ("ingest", {"use_dino": True}), ("reconstruct", {})]
+    assert all(r.status is StageStatus.REUSED for r in reused)

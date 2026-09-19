@@ -7,7 +7,16 @@ from litereality_agent.pipeline.support import command_result, run_module
 
 def complete(context: RunContext) -> bool:
     root = context.object_root / "object_init"
-    return (root / "object_init_summary.json").is_file() and (root / "object_refs" / context.scan).is_dir()
+    if not ((root / "object_init_summary.json").is_file()
+            and (root / "object_refs" / context.scan).is_dir()):
+        return False
+    from litereality_agent.pipeline.scene_init.layout.validation import inspect_layout
+
+    from . import merge_boxes
+
+    scene = root / "input" / "scene_data" / context.scan
+    return ((scene / "layout_baseline.json").is_file()
+            and merge_boxes.policy_current(scene) and inspect_layout(scene)["passed"])
 
 
 def run(context: RunContext, options: dict) -> StageResult:
@@ -17,6 +26,8 @@ def run(context: RunContext, options: dict) -> StageResult:
     ]
     if options.get("skip_image_generation"):
         args.append("--skip-image-generation")
+    if options.get("use_dino"):
+        args.append("--use-dino")
     if options.get("force"):
         args.extend(("--force-extract", "--force-crop", "--force-image-generation"))
     rc, log = run_module(

@@ -1,17 +1,15 @@
 """stage.py — the layout pass as the pipeline calls it.
 
 One function, `run_layout(scan)`, run from `scene_init/flow.py` in the window immediately after the
-box merge and before crops. It is written to the same contract as the merge it follows: it never
-raises into the caller. A layout pass that fails must leave the scan exactly as it found it and let
-the run continue unrepaired, because the alternative — taking down an otherwise good reconstruction
-over a geometry edge case — is worse than the misplacement it was trying to fix.
+box merge and before crops. This low-level repair helper returns failures as structured summaries.
+Pipeline callers must then call `require_valid_layout`: the required gate checks saved geometry,
+writes its verdict, and stops the pipeline on remaining errors or an unsuccessful repair.
 
     LR_LAYOUT=0        skip the pass entirely
-    LR_LAYOUT_AGENT=1  let the agent look at the reference photographs for what geometry cannot
-                       settle (off by default: it costs model calls, and the deterministic pass
-                       already clears 19 of 21 captures on its own)
-    LR_LAYOUT_DROP=1   allow the pass to DELETE a duplicate detection (off by default: a wrong
-                       deletion is the one failure here that nothing downstream reports)
+    LR_LAYOUT_AGENT=0  disable photographic agent repair (enabled by default when needed;
+                       the mandatory validation gate still blocks unresolved layouts)
+    The production fidelity gate disallows dropping measured objects; splitting a merged unit
+    back into all its original members is allowed.
     LR_LAYOUT_VIZ=0    do not draw the before/after plan (on by default — see report.py; it is
                        string building, costs milliseconds, and a run that repairs a room without
                        leaving a picture of the repair cannot be checked afterwards)
@@ -19,6 +17,7 @@ over a geometry edge case — is worse than the misplacement it was trying to fi
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import pickle
@@ -55,7 +54,8 @@ def _visualize(scan: str, before: dict[str, Any], after: dict[str, Any],
             from litereality_agent.pipeline.scene_init import paths as config
 
             traces = config.traces_dir(scan) / "layout.html"
-            if traces.resolve() != path.resolve():
+            if (config.scene_data_dir(scan).resolve() == scene_data_dir.resolve()
+                    and traces.resolve() != path.resolve()):
                 traces.parent.mkdir(parents=True, exist_ok=True)
                 traces.write_bytes(path.read_bytes())
                 path = traces
@@ -83,21 +83,16 @@ def _publish_shell(shell: dict[str, Any], scene_data_dir: Path, dropped: list[st
     Objects only, and deliberately so. Walls, openings and the floor stay the export's, because the
     layout pass never touches them and has no business being their source of truth.
     """
-    # Its own guard, for the reason `_visualize` has one: by the time this runs the repair is
-    # already on disk, and failing to publish a hand-off file must not report it as failed.
-    try:
-        _write_shell(shell, scene_data_dir, dropped)
-    except Exception as exc:                # noqa: BLE001
-        print(f"  [layout] could not publish layout_shell.json (non-fatal): "
-              f"{type(exc).__name__}: {exc}", flush=True)
+    # Unlike the visualization, this is the required hand-off to the room assembler.
+    _write_shell(shell, scene_data_dir, dropped)
 
 
 def _write_shell(shell: dict[str, Any], scene_data_dir: Path, dropped: list[str]) -> None:
     payload = {
         "scan": scene_data_dir.name,
         "source": "scene_init/layout",
-        "note": "object boxes AFTER the layout pass — the boxes the crops, references and "
-                "generated GLBs were built against. Overlaid onto the SHELL by room_ops export.",
+        "note": "Validated output placement and extents, overlaid by room_ops export. "
+                "Photographic evidence retains the original scan geometry.",
         "objects": {oid: {"category": o.get("category"), "center": list(o["center"]),
                           "size": list(o["size"]), "yaw": o.get("yaw", 0.0)}
                     for oid, o in (shell.get("objects") or {}).items()},
@@ -117,7 +112,6 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
     try:
         from . import adapter
         from .adjust import check
-        from .repair import repair
 
         if scene_data_dir is None:
             from litereality_agent.pipeline.scene_init import paths as config
@@ -129,9 +123,27 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
             return {"skipped": "no objects.pkl"}
 
         shell = adapter.shell_from_scene_data(scene_data_dir)
+        baseline_path = scene_data_dir / "layout_baseline.json"
+        source = scene_data_dir / "objects.extracted.pkl"
+        source_key = hashlib.sha256(source.read_bytes()).hexdigest() if source.exists() else None
+        if baseline_path.exists():
+            saved = json.loads(baseline_path.read_text())
+            if saved.get("source_key") != source_key:
+                raise ValueError("Extraction baseline changed; re-extract before layout repair")
+            baseline = saved["shell"]
+        else:
+            baseline = shell
+            baseline_path.write_text(json.dumps({"source_key": source_key, "shell": shell}, indent=2))
+        if use_agent is None:
+            use_agent = _enabled("LR_LAYOUT_AGENT", "1")
+        if use_agent:
+            from .evidence import prepare
+
+            prepare(scan, scene_data_dir, shell)
         found = check(shell)
         before = [v for v in found if v.severity == "error"]
-        if not before:
+        from .converge import fidelity_errors, solve
+        if not before and not fidelity_errors(shell, baseline):
             # Still draw it. "Already sound" is a claim about the room, and the plan is what lets
             # someone see that the room it is a claim about is the room they scanned — an empty
             # object set and a correctly placed one both report zero violations.
@@ -142,16 +154,11 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
                                violations_after=found, actions=[], mode="nothing to repair")
             if drawn:
                 summary["visualization"] = drawn
+            _save_verdict(scene_data_dir, summary)
             return summary
 
-        if use_agent is None:
-            use_agent = _enabled("LR_LAYOUT_AGENT", "0")
-        if use_agent:
-            shell.setdefault("meta", {})["batch_dir"] = str(scene_data_dir)
-            from .repair import solve_v13
-            repaired, _moves, actions = solve_v13(shell, detail=True)
-        else:
-            repaired, _moves, actions = repair(shell)
+        shell.setdefault("meta", {})["batch_dir"] = str(scene_data_dir)
+        repaired, _moves, actions, progress = solve(shell, baseline, use_agent=use_agent)
 
         settled = check(repaired)
         after = [v for v in settled if v.severity == "error"]
@@ -166,15 +173,16 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
 
         report = {"before": len(before), "after": len(after),
                   "actions": [a.get("action") for a in actions], **changed,
-                  "remaining": [str(v) for v in after]}
+                  "remaining": [str(v) for v in after], **progress, "decisions": actions}
+        if progress["fidelity_errors"]:
+            report["error"] = "Cumulative fidelity limits exceeded: " + ", ".join(progress["fidelity_errors"])
         _publish_shell(repaired, scene_data_dir, changed["dropped"])
         drawn = _visualize(scan, shell, repaired, scene_data_dir, violations_before=found,
                            violations_after=settled, actions=actions,
                            mode="agent-assisted" if use_agent else "deterministic")
         if drawn:
             report["visualization"] = drawn
-        (scene_data_dir / "layout_report.json").write_text(
-            json.dumps(report, indent=2), encoding="utf-8")
+        _save_verdict(scene_data_dir, report)
 
         print(f"  [layout] {len(before)} violations -> {len(after)}   "
               f"moved {len(changed['moved'])}, resized {len(changed['resized'])}, "
@@ -183,6 +191,22 @@ def run_layout(scan: str, *, scene_data_dir: str | Path | None = None,
             print(f"  [layout]   unresolved: {line}", flush=True)
         return report
     except Exception as exc:                    # noqa: BLE001 — never break init over the layout
-        print(f"  [layout] FAILED (non-fatal, continuing unrepaired): "
+        print(f"  [layout] repair FAILED (pipeline validation will reject this result): "
               f"{type(exc).__name__}: {exc}", flush=True)
-        return {"error": str(exc)}
+        result = {"error": str(exc)}
+        if scene_data_dir is not None and Path(scene_data_dir).is_dir():
+            try:
+                _save_verdict(Path(scene_data_dir), result)
+            except OSError:
+                pass  # the caller still rejects the returned error when disk writes fail
+        return result
+
+
+def _save_verdict(scene_data_dir, result):
+    from .validation import LayoutValidationError, require_valid_layout
+
+    try:
+        require_valid_layout(scene_data_dir.name, result, scene_data_dir=scene_data_dir)
+    except LayoutValidationError:
+        pass  # callers still enforce the required gate; standalone runs get the same verdict
+    (scene_data_dir / "layout_report.json").write_text(json.dumps(result, indent=2))

@@ -308,7 +308,8 @@ def _run(args) -> int:
             through=args.through,
             force=set(args.force or ()),
             strict=args.strict,
-            options={"reconstruct": _reconstruct_options(args),
+            options={"ingest": {"use_dino": getattr(args, "use_dino", False)},
+                     "reconstruct": _reconstruct_options(args),
                      "author": _author_options(args), "publish": _publish_options(args),
                      "simulate": _simulate_options(args)},
         )
@@ -329,6 +330,7 @@ def _stage(args) -> int:
             strict=args.strict,
             options={
                 "skip_image_generation": args.skip_image_generation,
+                "use_dino": getattr(args, "use_dino", False),
                 **_reconstruct_options(args),
                 **_author_options(args),
                 **_publish_options(args),
@@ -415,6 +417,8 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="append", choices=stages)
     run.add_argument("--strict", action="store_true")
     run.add_argument("--output-root")
+    run.add_argument("--use-dino", action="store_true",
+                     help="Refine capture crops with GroundingDINO during ingest.")
     _add_reconstruct_options(run)
     _add_author_options(run)
     _add_live_options(run)
@@ -429,6 +433,8 @@ def _parser() -> argparse.ArgumentParser:
     stage.add_argument("--strict", action="store_true")
     stage.add_argument("--skip-image-generation", action="store_true")
     stage.add_argument("--output-root")
+    stage.add_argument("--use-dino", action="store_true",
+                       help="Refine capture crops with GroundingDINO during ingest.")
     _add_reconstruct_options(stage)
     _add_author_options(stage)
     _add_live_options(stage)

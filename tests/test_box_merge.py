@@ -72,6 +72,36 @@ def test_upper_cabinet_above_the_base_is_not_merged():
     assert merge_boxes.auto_groups([base, upper]) == []
 
 
+def test_gallery_hanging_shelves_do_not_merge_with_floor_cabinet():
+    # Gallery_6130's actual extracted boxes, converted from SHELL to ARKit axes.
+    upper = box("Storage0", (-1.7892, 0.4869, -1.9034),
+                (2.7591, 0.927, 0.3749), yaw=79.24)
+    cabinet = box("Storage3", (-1.7006, -0.5919, -0.8842),
+                  (0.6362, 1.4009, 0.6499), yaw=79.24)
+    assert merge_boxes._footprint_overlap(upper, cabinet) > merge_boxes.DEFAULT_THRESH
+    assert merge_boxes._vertical_gap(upper, cabinet) < 0  # about 8.6 cm of measured overlap
+    assert merge_boxes.auto_groups([upper, cabinet]) == []
+    assert merge_boxes.auto_groups([cabinet, upper]) == []
+
+
+def test_storage_levels_cannot_merge_transitively_through_a_tall_box():
+    import itertools
+
+    lower = box("Storage0", (0, 0.5, 0), (1, 1, 0.6))
+    upper = box("Storage1", (0, 1.5, 0), (1, 1, 0.6))
+    bridge = box("Storage2", (0, 1, 0), (0.4, 2, 0.6))
+    for objects in itertools.permutations([lower, upper, bridge]):
+        groups = merge_boxes.auto_groups(list(objects))
+        assert all(not {"Storage0", "Storage1"}.issubset(g) for g in groups)
+        assert groups == [["Storage0", "Storage2"]]
+
+
+def test_storage_duplicate_with_height_jitter_still_merges():
+    a = box("Storage0", (0, 0.5, 0), (1, 1, 0.6))
+    b = box("Storage1", (0.1, 0.55, 0), (1, 1.1, 0.6))
+    assert merge_boxes.auto_groups([a, b]) == [["Storage0", "Storage1"]]
+
+
 def test_free_standing_furniture_is_never_merged():
     """A sofa overlapping a table is a bad box, not one object — only counter-run categories fuse."""
     objs = [
@@ -344,6 +374,17 @@ def test_arm_enlarged_crops_preserves_existing_ids(monkeypatch):
 def test_merge_for_scan_is_opt_outable(monkeypatch):
     monkeypatch.setenv("LR_BOX_MERGE", "0")
     assert merge_boxes.merge_for_scan("whatever-scan").get("disabled") is True
+
+
+def test_enabling_visual_review_invalidates_geometric_only_merge_policy(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setenv("LR_LAYOUT_AGENT", "0")
+    (tmp_path / "merge_review.json").write_text(json.dumps({
+        "policy_version": merge_boxes.POLICY_VERSION, "settings": merge_boxes.policy_settings()}))
+    assert merge_boxes.policy_current(tmp_path)
+    monkeypatch.setenv("LR_LAYOUT_AGENT", "1")
+    assert not merge_boxes.policy_current(tmp_path)
 
 
 def test_merge_for_scan_never_raises(monkeypatch, tmp_path):

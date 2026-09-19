@@ -32,7 +32,15 @@ def gen3d_from_settings(settings: LiteRealitySettings | None = None):
 
 def detection_from_settings(settings: LiteRealitySettings | None = None):
     settings = settings or load_settings()
-    if settings.modal_configured():
+    if settings.dino_backend == "local":
+        from litereality_agent.models.grounding_dino.service import DinoSubprocessService
+
+        if not settings.dino_python:
+            raise RuntimeError("Local DINO requires LR_DINO_PYTHON pointing to a CUDA-enabled "
+                               "torch/transformers environment.")
+        return DinoSubprocessService(python=str(settings.dino_python),
+                                     model_id=settings.dino_model, require_cuda=True)
+    if settings.dino_backend == "modal" or settings.modal_configured():
         from litereality_agent.models.grounding_dino.modal import ModalDinoService
 
         return ModalDinoService(
@@ -47,5 +55,5 @@ def detection_from_settings(settings: LiteRealitySettings | None = None):
     if settings.dino_python:
         from litereality_agent.models.grounding_dino.service import DinoSubprocessService
 
-        return DinoSubprocessService(python=str(settings.dino_python))
+        return DinoSubprocessService(python=str(settings.dino_python), model_id=settings.dino_model)
     return None
