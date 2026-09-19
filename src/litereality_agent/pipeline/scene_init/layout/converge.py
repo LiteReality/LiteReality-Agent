@@ -68,6 +68,19 @@ def solve(shell, baseline, *, use_agent, max_rounds=6):
             targets.setdefault(oid, Violation(oid, 'fidelity', 'excessive change from scan baseline'))
         changed = False
         for oid, violation in targets.items():
+            # An accepted edit plus deterministic repair may resolve several original targets.
+            # Recheck before paying for another review of a collision that no longer exists.
+            live_errors = [v for v in check(current) if v.severity == 'error']
+            invalid = fidelity_errors(current, baseline)
+            if not live_errors and not invalid:
+                break
+            relevant = [v for v in live_errors if oid in (v.object, v.other)]
+            if not relevant and oid not in invalid:
+                continue
+            if relevant:
+                latest = relevant[0]
+                violation = (latest if latest.object == oid else Violation(
+                    oid, latest.kind, latest.detail, latest.magnitude, latest.object))
             if oid not in current['objects'] or not list((root / 'references' / oid).glob('rank*.jpg')):
                 log.append({'action': 'agent_skipped', 'object': oid, 'reason': 'no reference images'})
                 continue

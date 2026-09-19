@@ -84,6 +84,25 @@ def test_resize_does_not_snap_to_unrelated_nearby_wall(tmp_path):
     assert quality(result)[0] == 0
 
 
+def test_resolved_targets_do_not_trigger_more_paid_reviews(agent_room, tmp_path, monkeypatch):
+    agent_room['objects']['Storage0'].update(center=[1, 0.6, 0.4], size=[1, 0.6, 0.8])
+    agent_room['objects']['Storage1'] = {
+        **agent_room['objects']['Storage0'], 'center': [1.9, 0.6, 0.4]}
+    refs = tmp_path / 'references/Storage1'
+    refs.mkdir()
+    Image.new('RGB', (40, 40), 'blue').save(refs / 'rank0.jpg')
+
+    def propose(shell, violation, *args, **kwargs):
+        assert violation.object == 'Storage0', 'The other target is already resolved'
+        return {'object_id': 'Storage0', 'action': 'resize', 'size': [0.7, 0.6, 0.8]}
+
+    monkeypatch.setattr(agent, 'propose', propose)
+    result, _, _, report = solve(agent_room, copy.deepcopy(agent_room), use_agent=True)
+    assert quality(result)[0] == 0
+    assert report['agent_calls'] == 1
+    assert report['stop_reason'] == 'validated'
+
+
 def test_missing_evidence_does_not_call_agent(tmp_path, monkeypatch):
     shell = room(tmp_path)
     repair = importlib.import_module("litereality_agent.pipeline.scene_init.layout.repair")
