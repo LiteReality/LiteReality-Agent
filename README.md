@@ -25,7 +25,12 @@ An open-source, end-to-end toolkit for turning real-world scans into simulation-
         alt="Kitchen: RGBD scan, agent reconstruction, then a MuJoCo shake test"></td>
   </tr>
 </table>
-<p align="center"><sub><b>RGBD scan → agent reconstruction → MuJoCo.</b> </sub></p>
+
+<p align="center">
+  <a href="https://litereality.github.io/agent/vr/office-elliott-qc.html">
+    ✨ <strong>Explore more examples in the interactive 3D viewer →</strong>
+  </a>
+</p>
 
 ## News
 
