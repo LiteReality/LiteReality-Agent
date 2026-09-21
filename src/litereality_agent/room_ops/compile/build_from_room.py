@@ -61,7 +61,7 @@ def run_object_py(
         print(console.row("error", name, "no object.py — nothing to build from", "cyan"))
         return False
     out_glb.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [blender, "-b", "--python", str(script), "--", str(texdir), str(out_glb)]
+    cmd = [blender, "-b", "--python-exit-code", "1", "--python", str(script), "--", str(texdir), str(out_glb)]
     t0 = time.time()
     r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     took = f"{console.colour('dim')}{time.time() - t0:5.1f}s{console.colour('off')}"
@@ -91,7 +91,12 @@ def materialize_textures(obj_dir: Path, texdir: Path) -> int:
     if bundled.is_dir():
         texdir.mkdir(parents=True, exist_ok=True)
         for bf in bundled.glob("*"):
-            shutil.copy2(bf, texdir / bf.name)
+            target = texdir / bf.name
+            # In-place refinement may already materialize into the bundled directory.
+            # A texture does not need copying onto itself (including hardlink aliases).
+            if target.exists() and bf.samefile(target):
+                continue
+            shutil.copy2(bf, target)
     return len(made)
 
 
@@ -182,6 +187,7 @@ def main() -> int:
     cmd = [
         blender,
         "-b",
+        "--python-exit-code", "1",
         "--python",
         str(roomdir / "Room.py"),
         "--",
@@ -213,7 +219,7 @@ def main() -> int:
     summary = f"{built}/{len(manifest['assets'])} objects" + (f"  ✗ {', '.join(failed)}" if failed else "")
     print(console.row(mark, "objects", summary, "yellow"))
     print(f"   {console.colour('dim')}preview → {console.short(preview)}{console.colour('off')}")
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

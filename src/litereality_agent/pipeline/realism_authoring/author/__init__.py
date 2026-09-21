@@ -2,6 +2,8 @@
 
 import json
 import shutil
+import tempfile
+from pathlib import Path
 
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.result import StageResult, StageStatus
@@ -9,7 +11,10 @@ from litereality_agent.pipeline.support import command_result, run_module
 
 
 def complete(context: RunContext) -> bool:
-    return (context.authored_room / "Room.py").is_file()
+    from litereality_agent.pipeline.realism_authoring.acceptance import is_accepted
+    preview = context.authoring_root / "room_preview"
+    return (is_accepted(context.authored_room, preview)
+            or is_accepted(context.authored_room, preview, "acceptance.json"))
 
 
 def run(context: RunContext, options: dict) -> StageResult:
@@ -29,16 +34,18 @@ def run(context: RunContext, options: dict) -> StageResult:
                 StageStatus.FAILED,
                 error=f"scene evidence failed; see {evidence_log}",
             )
-    if context.authored_room.exists():
-        shutil.rmtree(context.authored_room)
+    if context.authored_room.exists() and options.get("force"):
+        backup = Path(tempfile.mkdtemp(prefix="before-author-", dir=context.authored_room.parent))
+        shutil.move(str(context.authored_room), str(backup / "room"))
     context.authored_room.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(context.seed_room, context.authored_room)
+    if not context.authored_room.exists():
+        shutil.copytree(context.seed_room, context.authored_room)
     args: list[object] = [
         "--scene", context.scene_dir,
         "--room", context.authored_room,
         "--surface-ref", context.authoring_root / "surface_ref",
         "--scan", context.capture_dir,
-        "--profile", options.get("profile", "base"),
+        "--profile", options.get("profile", "open"),
     ]
     # Budgets only when asked for: the entrypoint knows each profile's own defaults.
     for key, flag in (("max_turns", "--max-turns"), ("step_budget", "--step-budget")):
@@ -73,6 +80,9 @@ def run(context: RunContext, options: dict) -> StageResult:
             f"{summary.get('step_budget', '?')}) — the room is as far as it got, not finished. "
             f"Raise it with --author-steps."
         )
+        result.status = StageStatus.FAILED
+        result.error = "needs_repair: authoring session stopped early; saved room retained"
+        return result
 
     # THE GATE. Whatever the brief asked for, the question at the end is the same: could a physics
     # engine take this room? Answered from the build and written down beside it. It cannot run
@@ -133,6 +143,9 @@ def run(context: RunContext, options: dict) -> StageResult:
         )
         if pass_rc:
             result.warnings.append(f"{name} exited {pass_rc}; see {pass_log}")
+            result.status = StageStatus.FAILED
+            result.error = f"needs_repair: {name} did not finish; saved room retained"
+            return result
     refinement = context.authoring_root / "obj_refine"
     if refinement.is_dir():
         result.artifacts["object_refinement"] = str(refinement)
@@ -141,33 +154,11 @@ def run(context: RunContext, options: dict) -> StageResult:
     # The gate reads the BUILD. A session that rendered has one; a session that stopped early
     # or only edited may not, and an unbuilt room is exactly the one whose claims nobody checked.
     # `Room.py` is valid Python here (author.run guarantees it), so build it once (~1-2 min).
-    if not (preview / "room_layout.json").is_file() or \
-            (preview / "room_layout.json").stat().st_mtime < (context.authored_room / "Room.py").stat().st_mtime:
-        build_rc, build_log = run_module(
-            context, "litereality_agent.room_ops.compile.build_from_room",
-            ["--room", context.authored_room, "--out", preview],
-            log_name="author_build",
-        )
-        if build_rc:
-            result.warnings.append(f"could not build the authored room for the validation gate (exit {build_rc}); see {build_log}")
-    if (preview / "room_layout.json").is_file():
-        gate_rc, gate_log = run_module(
-            context,
-            "litereality_agent.pipeline.room_qc.validate",
-            ["--room", context.authored_room, "--preview", preview],
-            log_name="validate",
-        )
-        report = preview / "validation.json"
-        if report.is_file():
-            result.artifacts["validation"] = str(report)
-        if gate_rc == 2:
-            try:
-                n = len(json.loads(report.read_text(encoding="utf-8")).get("failing", []))
-            except (OSError, ValueError):
-                n = "?"
-            result.warnings.append(
-                f"validation gate FAILED with {n} blocking finding(s) — floating/sunk objects, "
-                f"undeclared supports, mesh clashes or lost articulation; see {report}")
-        elif gate_rc:
-            result.warnings.append(f"validation gate could not run (exit {gate_rc}); see {gate_log}")
+    from litereality_agent.pipeline.realism_authoring.acceptance import finish
+    report = finish(context, options)
+    result.artifacts["acceptance"] = str(preview / "author_acceptance.json")
+    result.details["acceptance"] = report
+    if not report.get("accepted"):
+        result.status = StageStatus.FAILED
+        result.error = "needs_repair: support/visual acceptance failed; source and evidence retained"
     return result

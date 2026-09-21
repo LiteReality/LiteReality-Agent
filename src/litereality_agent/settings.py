@@ -58,15 +58,16 @@ class LiteRealitySettings(BaseSettings):
     # the harness is the agent loop, the model is the brain inside it. Per-role overrides default
     # to `agent_provider` in `resolve_dependent_defaults`.
     agent_provider: str = Field(default="claude", validation_alias="LR_AGENT_PROVIDER")
-    author_provider: str | None = Field(default=None, validation_alias="LR_AUTHOR_PROVIDER")
-    materials_provider: str | None = Field(default=None, validation_alias="LR_MATERIALS_PROVIDER")
-    quality_provider: str | None = Field(default=None, validation_alias="LR_QUALITY_PROVIDER")
-    refine_provider: str | None = Field(default=None, validation_alias="LR_REFINE_PROVIDER")
+    author_provider: str | None = Field(default="codex", validation_alias="LR_AUTHOR_PROVIDER")
+    materials_provider: str | None = Field(default="codex", validation_alias="LR_MATERIALS_PROVIDER")
+    quality_provider: str | None = Field(default="codex", validation_alias="LR_QUALITY_PROVIDER")
+    refine_provider: str | None = Field(default="codex", validation_alias="LR_REFINE_PROVIDER")
     procedural_provider: str | None = Field(
         default=None, validation_alias="LR_PROCEDURAL_PROVIDER"
     )
-    codex_model: str | None = Field(default=None, validation_alias="LR_CODEX_MODEL")
+    codex_model: str | None = Field(default="gpt-6-astra", validation_alias="LR_CODEX_MODEL")
     codex_effort: str = Field(default="high", validation_alias="LR_CODEX_EFFORT")
+    codex_session_seconds: float = Field(default=1800, gt=0, validation_alias="LR_CODEX_SESSION_SECONDS")
 
     harness_model: str = Field(default="claude-opus-5", validation_alias="HARNESS_MODEL")
     critic_model: str | None = Field(default=None, validation_alias="HARNESS_CRITIC_MODEL")
@@ -211,6 +212,7 @@ class LiteRealitySettings(BaseSettings):
             "LR_PROCEDURAL_PROVIDER": self.procedural_provider,
             "LR_CODEX_MODEL": self.codex_model,
             "LR_CODEX_EFFORT": self.codex_effort,
+            "LR_CODEX_SESSION_SECONDS": self.codex_session_seconds,
             "HARNESS_MODEL": self.harness_model,
             "HARNESS_CRITIC_MODEL": self.critic_model,
             "LR_CHAIR_JUDGE_MODEL": self.chair_judge_model,

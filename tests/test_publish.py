@@ -9,6 +9,7 @@ tests that it is live beside the viewer in `test_walk_viewer.py`.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,8 @@ class Recorder:
 def stub(monkeypatch):
     """No Blender anywhere: the bake is a no-op, and the compressor fails the test if reached."""
     monkeypatch.setattr("litereality_agent.room_ops.api.bake_room", lambda *a, **k: 0)
+    monkeypatch.setattr("litereality_agent.pipeline.realism_authoring.acceptance.assess",
+                        lambda *a: {"accepted": True})
 
     def never(*_a, **_k):
         raise AssertionError("publish must not compress; the web copy is made on first view")
@@ -129,7 +132,7 @@ def test_a_failed_compile_fails_the_stage(scene: Path, stub) -> None:
     assert "final compile failed" in (result.error or "")
 
 
-def test_complete_tracks_the_room_alone(scene: Path) -> None:
+def test_complete_requires_fresh_acceptance(scene: Path) -> None:
     """`complete` used to also require `viewer.html`. With the page gone, requiring anything but the
     room would make every publish re-run forever."""
     context = _context(scene)
@@ -138,7 +141,16 @@ def test_complete_tracks_the_room_alone(scene: Path) -> None:
     glb = context.preview_dir / "Room.glb"
     glb.parent.mkdir(parents=True, exist_ok=True)
     glb.write_bytes(b"glTF")
+    assert publish.complete(context) is False
+    from litereality_agent.pipeline.realism_authoring.acceptance import SCHEMA, fingerprint
+    (context.preview_dir / "room_layout.json").write_text("{}")
+    (context.preview_dir / "manifest.json").write_text("{}")
+    (context.preview_dir / "acceptance.json").write_text(json.dumps({
+        "schema": SCHEMA, "accepted": True,
+        "fingerprint": fingerprint(context.authored_room, context.preview_dir)}))
     assert publish.complete(context) is True
+    glb.write_bytes(b"changed")
+    assert publish.complete(context) is False
 
 
 def test_compare_frames_prefers_the_flag_then_the_environment(monkeypatch) -> None:

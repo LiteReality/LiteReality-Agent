@@ -196,7 +196,7 @@ def move_to_collection(obj, coll):
 
 
 def group_fixture(name, category, parts, parent_coll="Fixtures", *,
-                  rests_on=None, attached_to=None):
+                  rests_on=None, attached_to=None, support_part=None):
     """Bundle a wall/ceiling fixture's part-objects (frame bars, radiator fins, pen tray, faceplate,
     louvre slats …) into ONE named, hide-as-a-unit group — the fixture analogue of `_wrap_handle`
     for furniture. It creates an empty handle `name` (carrying room_id/category custom props),
@@ -225,6 +225,8 @@ def group_fixture(name, category, parts, parent_coll="Fixtures", *,
         grp["rests_on"] = rests_on
     if attached_to:
         grp["attached_to"] = attached_to
+    if support_part:
+        grp["support_part"] = support_part
     coll = get_or_make_collection(name)
     # nest this fixture's own collection under the shared Fixtures parent, so the outliner shows
     # Whiteboard0 / Radiator0 / … as tidy sub-groups rather than every part loose in one bucket.
@@ -251,6 +253,8 @@ def mesh_descendants(obj):
     out, stack = [], [obj]
     while stack:
         o = stack.pop()
+        if o != obj and o.get("room_id"):
+            continue  # supported objects belong to their own handle, not their support's bounds
         if o.type == "MESH":
             out.append(o)
         stack.extend(o.children)
@@ -1015,7 +1019,7 @@ class RoomScene:
 
     # ---------------------------------------------------------------- index
     def _register(self, rid, cat, meshes, source=None, handle=None,
-                  rests_on=None, attached_to=None):
+                  rests_on=None, attached_to=None, support_part=None):
         mn, mx = world_bbox(meshes)
         self.objects[rid] = {
             "id": rid,
@@ -1029,6 +1033,7 @@ class RoomScene:
             "placeable_surface": cat in PLACEABLE_CATS,
             "rests_on": rests_on,
             "attached_to": attached_to,
+            "support_part": support_part,
             "source_glb": source,
         }
 
@@ -1048,6 +1053,7 @@ class RoomScene:
                     handle=o.name,
                     rests_on=o.get("rests_on"),
                     attached_to=o.get("attached_to"),
+                    support_part=o.get("support_part"),
                 )
         return self.objects
 
@@ -1210,6 +1216,8 @@ class RoomScene:
         )
 
     def export_glb(self):
+        self.bind_supports()
+        self.index()
         os.makedirs(os.path.dirname(self.out_glb), exist_ok=True)
         bpy.ops.object.select_all(action="DESELECT")
         for o in bpy.data.objects:
@@ -1225,6 +1233,35 @@ class RoomScene:
             export_lights=False,
         )
         print(f"  EXPORTED -> {self.out_glb} ({os.path.getsize(self.out_glb) // 1024} KB)")
+
+    def bind_supports(self):
+        """Carry supported objects with their named support part, keeping the rest pose.
+
+        An articulated support is deliberately NOT guessed: the author must name its
+        supporting part (e.g. the moving desktop). The export validator rejects ambiguity.
+        """
+        handles = {o.get("room_id"): o for o in bpy.data.objects if o.get("room_id")}
+        for child in handles.values():
+            target = child.get("rests_on") or child.get("attached_to")
+            if not target:
+                continue
+            support = handles.get(target) or bpy.data.objects.get(target)
+            if support is None:
+                raise ValueError(f"{child.name}: unknown support {target}")
+            part = child.get("support_part")
+            parent = bpy.data.objects.get(part) if part else support
+            if parent is None or (parent != support and parent not in support.children_recursive):
+                raise ValueError(f"{child.name}: support_part {part} is not part of {target}")
+            if parent == child or parent in child.children_recursive:
+                raise ValueError(f"support cycle involving {child.name}")
+            if child.parent == parent:
+                continue
+            if child.animation_data:
+                raise ValueError(f"{child.name}: cannot reparent an independently animated object")
+            world = child.matrix_world.copy()
+            child.parent = parent
+            child.matrix_world = world
+            bpy.context.view_layer.update()
 
     def export_layout(self, path=None):
         path = path or os.path.join(os.path.dirname(self.out_glb), "room_layout.json")

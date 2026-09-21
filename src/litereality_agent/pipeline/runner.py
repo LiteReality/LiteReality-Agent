@@ -80,6 +80,8 @@ class PipelineRunner:
             name
             for name, value in prior.items()
             if value.get("status") in {StageStatus.COMPLETED.value, StageStatus.REUSED.value}
+            and name in self.by_name
+            and (self.by_name[name].is_complete is None or self.by_name[name].is_complete(context))
         }
         for stage in selected:
             for prerequisite in stage.prerequisites:

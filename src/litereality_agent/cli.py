@@ -118,9 +118,10 @@ def _author_options(args) -> dict:
     }
     # Only pass what was actually given, so the stage keeps its own defaults for the rest.
     for name, key in (("author_profile", "profile"), ("author_steps", "step_budget"),
-                      ("author_turns", "max_turns")):
+                      ("author_turns", "max_turns"), ("repair_rounds", "repair_rounds"),
+                      ("repair_steps", "repair_steps"), ("repair_seconds", "repair_seconds")):
         value = getattr(args, name, None)
-        if value:
+        if value is not None:
             opts[key] = value
     return opts
 
@@ -171,7 +172,7 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
     # stage summary, which is what makes a low number safe to ask for.
     parser.add_argument(
         "--author-steps", type=int, default=None, metavar="N",
-        help="tool-call budget for the authoring session (default 100); "
+        help="tool-call budget for the authoring session (open default 300); "
              "a low value returns an unfinished room and says so",
     )
     parser.add_argument(
@@ -179,9 +180,13 @@ def _add_author_options(parser: argparse.ArgumentParser) -> None:
         help="authoring brief: base (materials + wall fixtures), detail (multi-part fixtures), "
              "simulation (adds real lighting, small objects, and support declarations), "
              "open (a goal brief with the full evidence pack + measurement helpers and the validation "
-             "gate; defaults to the codex/gpt-6 harness)",
+             "gate; default profile, using the codex/gpt-6 harness)",
     )
     parser.add_argument("--author-turns", type=int, help="authoring hard turn backstop (default 140)")
+    parser.add_argument("--repair-rounds", type=int, choices=range(4), default=2,
+                        help="bounded support-first repair rounds (default 2; 0 checks only)")
+    parser.add_argument("--repair-steps", type=int, default=40, help="tool calls per repair (1..150)")
+    parser.add_argument("--repair-seconds", type=int, default=600, help="wall seconds per repair (1..1800)")
 
 
 def _simulate_options(args) -> dict:

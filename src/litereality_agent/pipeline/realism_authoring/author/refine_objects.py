@@ -24,6 +24,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -287,7 +288,7 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
     # Without it the model cannot see its own build, and the whole prompt (N render rounds) is
     # meaningless. Fail loudly rather than run a paid session that was silently lobotomised.
     harness = providers.resolve("refine", provider)
-    if "inproc_tools" not in harness.supports:
+    if "inproc_tools" not in harness.supports and harness.name != "codex":
         raise RuntimeError(
             f"object refinement needs an in-process tool host; the {harness.name} harness has none. "
             f"Its `render_object` tool is per-session, not a registry tool, so it cannot be bridged "
@@ -318,7 +319,7 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
     # generic category label from the object name (e.g. Wall1_Door_0->door, Sofa0->sofa, Storage2->storage)
     base = re.sub(r"^Wall\d+_", "", name)
     cat = (re.sub(r"_?\d+$", "", base) or "object").lower()
-    server, allowed = build_server(obj_dir, targets, blender, name, counter)
+    server, allowed = build_server(obj_dir, targets, blender, name, counter) if harness.name != "codex" else (None, [])
 
     # BEFORE snapshot: render the untouched build + stash its object.py, so the effect of this
     # refinement session is auditable afterwards (visual before/after + a code diff).
@@ -339,8 +340,14 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
         model=model,
         max_turns=max_turns,
         budget_usd=_BUDGET,  # budget guardrail
-        extra_mcp={"obj": server},
+        extra_mcp={"obj": server} if server else {},
+        stdio_mcp={"obj": {"command": sys.executable, "args": [
+            "-m", "litereality_agent.pipeline.realism_authoring.author.object_server",
+            str(obj_dir), str(RESULTS.resolve()), blender, name,
+            json.dumps([str(p.resolve()) for p in targets]),
+        ]}} if harness.name == "codex" else {},
         extra_allowed=tuple(allowed),
+        step_budget=40, timeout_seconds=600,
     )
     t0 = time.monotonic()
     calls = 0
@@ -365,6 +372,8 @@ async def refine_one(name: str, room: Path, refroot: Path, scan: Path, blender: 
                     if isinstance(m, providers.SessionResult):
                         summary = m.result or ""
                         cost = m.total_cost_usd
+                        if m.stopped or m.is_error:
+                            raise RuntimeError(f"refinement incomplete: {m.stopped or m.result}")
             last_err = None
             break  # session completed
         except Exception as e:  # noqa: BLE001 — a failed object must not kill the scene

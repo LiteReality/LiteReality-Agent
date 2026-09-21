@@ -244,7 +244,7 @@ async def run(room: Path, surface_ref: Path, scan: Path, refroot: Path, model: s
     nar = ToolNarrator()
     from litereality_agent.agent.trace import AgentTrace
     tr = AgentTrace("qc", room=room, scan=scan.name)
-    tr.start(model=model, room=str(room),
+    tr.start(model=harness.effective_model(spec), role_model=model, room=str(room),
              scratch=str(scratch_at) if scratch_at else None)
     async for m in harness.run(spec):
         tr.raw(getattr(m, "raw", None) if getattr(m, "raw", None) is not None else m)

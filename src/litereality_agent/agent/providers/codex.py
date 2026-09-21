@@ -40,6 +40,7 @@ import asyncio
 import json
 import os
 import shutil
+import signal
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -67,6 +68,36 @@ _SHELL_TOOL = "Bash"
 _EVENT_LINE_LIMIT = 64 * 1024 * 1024
 
 
+def _session_processes(root):
+    """Include shell/MCP helpers that created separate process groups (Linux runner)."""
+    table = {}
+    if not Path("/proc").is_dir():
+        return table  # POSIX process-group cleanup still applies outside Linux
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit():
+            try:
+                fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+                table[int(entry.name)] = (int(fields[1]), fields[19])
+            except (OSError, IndexError):
+                pass
+    found = {root}
+    while True:
+        extra = {pid for pid, (parent, _) in table.items() if parent in found} - found
+        if not extra:
+            return {pid: table[pid][1] for pid in found if pid in table}
+        found.update(extra)
+
+
+def _signal_session(processes, sig):
+    for pid, started in processes.items():
+        try:
+            current = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+            if current == started:
+                os.kill(pid, sig)
+        except (OSError, IndexError):
+            pass
+
+
 def _toml(value) -> str:
     """A TOML scalar/array literal for `codex -c key=<value>`. JSON is valid TOML for these."""
     return json.dumps(value)
@@ -78,8 +109,16 @@ def _mcp_config(spec: SessionSpec) -> list[str]:
     The server is spawned with THIS interpreter, so it imports the same `litereality_agent` the
     pipeline is running from — not whatever `python` resolves to on Codex's PATH.
     """
+    extra = []
+    pythonpath = str(Path(__file__).resolve().parents[3])
+    for name, server in spec.stdio_mcp.items():
+        if not name.replace("_", "").isalnum():
+            raise ValueError(f"invalid MCP server name: {name}")
+        for key in ("command", "args"):
+            extra += ["-c", f"mcp_servers.{name}.{key}={_toml(server[key])}"]
+        extra += ["-c", f"mcp_servers.{name}.env.PYTHONPATH={_toml(pythonpath)}"]
     if not spec.capability_tools:
-        return []
+        return extra
     args = [
         "-m",
         "litereality_agent.agent.tools.mcp_server",
@@ -88,11 +127,13 @@ def _mcp_config(spec: SessionSpec) -> list[str]:
         "--tools",
         ",".join(spec.capability_tools),
     ]
-    return [
+    return extra + [
         "-c",
         f"mcp_servers.cap.command={_toml(sys.executable)}",
         "-c",
         f"mcp_servers.cap.args={_toml(args)}",
+        "-c",
+        f"mcp_servers.cap.env.PYTHONPATH={_toml(pythonpath)}",
     ]
 
 
@@ -202,18 +243,14 @@ def _normalise(event: dict, counter: dict) -> list:
             for change in item.get("changes") or []:
                 path = change.get("path") if isinstance(change, dict) else change
                 cid = next_id("edit")
-                blocks.append(
-                    ToolUseBlock(id=cid, name=_EDIT_TOOL, input={"file_path": str(path)})
-                )
+                blocks.append(ToolUseBlock(id=cid, name=_EDIT_TOOL, input={"file_path": str(path)}))
                 blocks.append(ToolResultBlock(tool_use_id=cid, content="applied"))
             return blocks
         if itype == "mcp_tool_call":
             call_id = item.get("id") or next_id("mcp")
             name = f"mcp__{item.get('server') or 'cap'}__{item.get('tool') or '?'}"
             if started:
-                return [
-                    ToolUseBlock(id=call_id, name=name, input=item.get("arguments") or {})
-                ]
+                return [ToolUseBlock(id=call_id, name=name, input=item.get("arguments") or {})]
             return [
                 ToolResultBlock(
                     tool_use_id=call_id,
@@ -258,7 +295,11 @@ class CodexHarness:
             # A room directory is not a git checkout, and without this Codex refuses to start at
             # all: "Not inside a trusted directory and --skip-git-repo-check was not specified."
             "--skip-git-repo-check",
-            "--dangerously-bypass-approvals-and-sandbox",
+            *(
+                ["--sandbox", "read-only", "-c", 'approval_policy="never"']
+                if spec.read_only
+                else ["--dangerously-bypass-approvals-and-sandbox"]
+            ),
             "-c",
             f"model_reasoning_effort={_toml(_effort())}",
             *_mcp_config(spec),
@@ -266,7 +307,7 @@ class CodexHarness:
         # Claude Code's `add_dirs` equivalent. Note these become WRITABLE to Codex — there is no
         # read-only variant — so the roots a session is given are wider here than on Claude Code.
         for root in spec.roots():
-            if root != str(spec.cwd):
+            if root != str(spec.cwd) and not spec.read_only:
                 cmd += ["--add-dir", root]
         # `spec.model` carries the ROLE's model in Claude vocabulary (`claude-opus-5`), which is
         # meaningless to Codex — passing it through would fail the run. Codex takes its model from
@@ -284,7 +325,11 @@ class CodexHarness:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=_EVENT_LINE_LIMIT,
+            start_new_session=True,
         )
+        seconds = spec.timeout_seconds or float(os.environ.get("LR_CODEX_SESSION_SECONDS", "1800"))
+        deadline = asyncio.get_running_loop().time() + seconds if seconds > 0 else None
+        stderr_task = asyncio.create_task(proc.stderr.read())
 
         counter: dict = {}
         calls = 0
@@ -295,52 +340,87 @@ class CodexHarness:
         matched = 0
         usage: dict = {}
         thread_id = ""
+        terminal_error = False
 
-        assert proc.stdout is not None
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            raw = line.decode(errors="replace").strip()
-            if not raw:
-                continue
+        try:
+            assert proc.stdout is not None
+            while True:
+                try:
+                    remaining = (
+                        max(0, deadline - asyncio.get_running_loop().time()) if deadline else None
+                    )
+                    line = await asyncio.wait_for(proc.stdout.readline(), remaining)
+                except asyncio.TimeoutError:
+                    stopped = f"wall time budget {seconds:g}s reached"
+                    break
+                if not line:
+                    break
+                raw = line.decode(errors="replace").strip()
+                if not raw:
+                    continue
+                try:
+                    event = json.loads(raw)
+                except json.JSONDecodeError:
+                    # Not every line is an event (banners, progress). Keep it as prose so the
+                    # trace still shows what the session said.
+                    unparsed += 1
+                    yield AgentMessage(content=[TextBlock(text=raw)], raw=raw)
+                    continue
+                if event.get("type") == "turn.completed":
+                    turns += 1
+                    usage = event.get("usage") or usage
+                if event.get("type") in {"turn.failed", "error"}:
+                    terminal_error = True
+                if event.get("type") == "thread.started":
+                    thread_id = str(event.get("thread_id") or "")
+                blocks = _normalise(event, counter)
+                if blocks:
+                    matched += 1
+                for block in blocks:
+                    if isinstance(block, TextBlock) and block.text.strip():
+                        summary = block.text
+                if blocks:
+                    yield AgentMessage(content=blocks, raw=event)
+
+                # Step budget, emulated: no hook exists, so the only lever is ending the session.
+                calls += sum(1 for b in blocks if isinstance(b, ToolUseBlock))
+                if spec.step_budget > 0 and calls >= spec.step_budget and not stopped:
+                    stopped = f"step budget {spec.step_budget} reached"
+                    spec.log(
+                        f"\n  ⛔ step budget {spec.step_budget} reached ({calls} tool-calls) — "
+                        f"terminating the codex session (no wind-down: codex has no pre-tool hook)."
+                    )
+                    break
+
+        except BaseException:
+            # A cancelled consumer or malformed event must not leave a paid session running.
+            processes = _session_processes(proc.pid)
+            _signal_session(processes, signal.SIGKILL)
             try:
-                event = json.loads(raw)
-            except json.JSONDecodeError:
-                # Not every line is an event (banners, progress). Keep it as prose so the
-                # trace still shows what the session said.
-                unparsed += 1
-                yield AgentMessage(content=[TextBlock(text=raw)], raw=raw)
-                continue
-            if event.get("type") == "turn.completed":
-                turns += 1
-                usage = event.get("usage") or usage
-            if event.get("type") == "thread.started":
-                thread_id = str(event.get("thread_id") or "")
-            blocks = _normalise(event, counter)
-            if blocks:
-                matched += 1
-            for block in blocks:
-                if isinstance(block, TextBlock) and block.text.strip():
-                    summary = block.text
-            if blocks:
-                yield AgentMessage(content=blocks, raw=event)
-
-            # Step budget, emulated: no hook exists, so the only lever is ending the session.
-            calls += sum(1 for b in blocks if isinstance(b, ToolUseBlock))
-            if spec.step_budget > 0 and calls >= spec.step_budget and not stopped:
-                stopped = f"step budget {spec.step_budget} reached"
-                spec.log(
-                    f"\n  ⛔ step budget {spec.step_budget} reached ({calls} tool-calls) — "
-                    f"terminating the codex session (no wind-down: codex has no pre-tool hook)."
-                )
-                proc.terminate()
-                break
-
-        err = b""
-        if proc.stderr is not None:
-            err = await proc.stderr.read()
-        await proc.wait()
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await proc.wait()
+            stderr_task.cancel()
+            raise
+        if stopped:
+            processes = _session_processes(proc.pid)
+            _signal_session(processes, signal.SIGTERM)
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        try:
+            await asyncio.wait_for(proc.wait(), 5 if stopped else None)
+        except asyncio.TimeoutError:
+            os.killpg(proc.pid, signal.SIGKILL)
+            await proc.wait()
+        if stopped:
+            _signal_session(processes, signal.SIGKILL)
+        try:
+            err = await asyncio.wait_for(stderr_task, 5)
+        except asyncio.TimeoutError:
+            err = b"stderr remained open after session termination"
 
         if matched == 0 and unparsed == 0:
             spec.log(
@@ -348,7 +428,7 @@ class CodexHarness:
                 "changed; see agent/providers/codex.py:_normalise"
             )
 
-        failed = proc.returncode not in (0, None) and not stopped
+        failed = terminal_error or (proc.returncode not in (0, None) and not stopped)
         yield SessionResult(
             result=summary,
             # `codex exec` reports TOKENS, not spend, and the per-token price depends on the
@@ -387,6 +467,6 @@ def rollout_path(thread_id: str) -> str | None:
 
 
 def _codex_model() -> str | None:
-    """`LR_CODEX_MODEL`, or None to let `codex` pick its own default."""
+    """Explicit project model; never inherit a machine-specific Codex default."""
     value = (os.environ.get("LR_CODEX_MODEL") or "").strip()
-    return value or None
+    return value or "gpt-6-astra"

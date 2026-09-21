@@ -23,7 +23,10 @@ first `view` of a given build instead, and `compress.compressed` keeps it for ev
 
 from __future__ import annotations
 
+import json
 import os
+import tempfile
+from pathlib import Path
 
 from litereality_agent.pipeline.context import RunContext
 from litereality_agent.pipeline.result import StageResult, StageStatus
@@ -49,7 +52,8 @@ def compare_frames(options: dict) -> int:
 
 
 def complete(context: RunContext) -> bool:
-    return (context.preview_dir / "Room.glb").is_file()
+    from litereality_agent.pipeline.realism_authoring.acceptance import is_accepted
+    return is_accepted(context.authored_room, context.preview_dir, "acceptance.json")
 
 
 def published_room(context: RunContext):
@@ -107,7 +111,7 @@ def run(context: RunContext, options: dict) -> StageResult:
     collision_rc, collision_log = run_module(
         context,
         "litereality_agent.pipeline.room_qc.correct",
-        ["--room", context.authored_room, "--apply"],
+        ["--room", context.authored_room],
         log_name="publish_collision",
     )
     if collision_rc:
@@ -139,7 +143,20 @@ def run(context: RunContext, options: dict) -> StageResult:
 
     bake_rc = api.bake_room(context.preview_dir / "Room.blend", glb)
     if bake_rc:
-        warnings.append(f"material bake exited {bake_rc}; see {glb.parent / 'bake.log'}")
+        return StageResult("publish", StageStatus.FAILED,
+                           error=f"material bake failed; candidate retained at {glb}")
+
+    # Validate/review the final rebuilt and baked export, not an earlier authoring snapshot.
+    from litereality_agent.pipeline.realism_authoring.acceptance import assess
+    evidence = Path(tempfile.mkdtemp(prefix="publish-review-", dir=context.authoring_root))
+    report = assess(context, context.preview_dir, evidence)
+    acceptance = context.preview_dir / "acceptance.json"
+    acceptance.write_text(json.dumps(report, indent=2))
+    if not report.get("accepted"):
+        return StageResult("publish", StageStatus.FAILED,
+            artifacts={"candidate_glb": str(glb), "acceptance": str(acceptance)},
+            error="needs_repair: final export failed support/visual acceptance; candidate retained",
+            details={"acceptance": report}, warnings=warnings)
 
     frames = compare_frames(options)
     if frames and context.capture_dir.is_dir():
@@ -160,6 +177,7 @@ def run(context: RunContext, options: dict) -> StageResult:
         artifacts={
             "room_source": str(context.authored_room / "Room.py"),
             "room_glb": str(glb),
+            "acceptance": str(acceptance),
         },
         warnings=warnings,
     )

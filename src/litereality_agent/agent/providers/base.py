@@ -109,6 +109,9 @@ class SessionSpec:
     # harness advertising `inproc_tools` can serve one — there is no registry entry behind it to
     # rebuild in a subprocess. Callers must check `supports` before relying on it.
     extra_mcp: dict = field(default_factory=dict)
+    stdio_mcp: dict = field(default_factory=dict)
+    read_only: bool = False
+    timeout_seconds: float = 0
     extra_allowed: tuple[str, ...] = ()
     file_tools: tuple[str, ...] = ("Read", "Edit", "Write", "Glob")
     skills: tuple[str, ...] = ()
@@ -168,7 +171,7 @@ def provider_name(role: str = "", override: str | None = None) -> str:
                     f"unsupported agent provider {chosen!r} (expected one of {', '.join(PROVIDERS)})"
                 )
             return chosen
-    return DEFAULT_PROVIDER
+    return "codex" if role in {"author", "materials", "quality", "refine"} else DEFAULT_PROVIDER
 
 
 def resolve(role: str = "", override: str | None = None) -> AgentHarness:

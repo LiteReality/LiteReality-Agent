@@ -89,6 +89,8 @@ def check_support(objs: list[dict], floor_z: float) -> list[dict]:
                 findings.append({"id": o["id"], "kind": "off_support", "rests_on": sup, "overlap": round(over, 2),
                                  "detail": f"only {over*100:.0f}% of {o['id']}'s footprint is over {sup}"})
         elif att:
+            if att not in by_id:
+                findings.append({"id": o["id"], "kind": "unknown_support", "attached_to": att})
             continue
         elif cat in FLOOR_STANDING or o.get("source_glb"):
             gap = bottom - floor_z
@@ -203,6 +205,8 @@ def validate(room: Path, preview: Path | None = None) -> dict:
             floor_z = float(o.get("top_z", floor_z))
             break
     glb = preview / "Room.glb"
+    if not glb.is_file() or not (preview / "manifest.json").is_file():
+        return {"ok": False, "pass": False, "error": "missing GLB or asset manifest; rebuild before validation"}
     support = check_support(objs, floor_z)
     overlaps = check_overlaps(objs)
     articulated = check_articulated(manifest, glb)
@@ -210,10 +214,22 @@ def validate(room: Path, preview: Path | None = None) -> dict:
     clashes = mesh_clashes(room, glb)
     # Bounding boxes cannot tell a chair tucked under a table from a chair through it, so the AABB
     # list is a REVIEW list; only the real-mesh contacts (python-fcl) block.
-    failing = [f for f in support if f["kind"] in ("floating", "sunk", "undeclared_support", "unknown_support")]
+    # Height/box findings remain diagnostic. Actual finite-surface contact is authoritative
+    # (a shelf's top is not the top of its backboard). Failure to run is never a pass.
+    from . import export_support, support_audit
+    try:
+        contact = support_audit.audit(preview, strict=True)
+        exported = export_support.check(export_support.glb_document(glb), objs, manifest)
+        failing = list(contact["support_findings"]) + exported
+    except Exception as exc:
+        contact = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
+        failing = [{"kind": "strict_check_unavailable", "detail": contact["error"]}]
     failing += [f for f in articulated if f["kind"] == "articulation_lost"]
     if clashes:
-        failing += [c for c in clashes if c.get("kind") in ("object_clash", "wall_clash", "opening_blocked")]
+        failing += [c for c in clashes if c.get("kind") in ("object_clash", "wall_clash", "opening_blocked", "open_swing_blocked", "mesh_check_failed")]
+    if clashes is None:
+        failing.append({"kind": "mesh_check_unavailable", "detail": "install python-fcl and rerun"})
+    failing += [f for f in articulated if f["kind"] == "articulated_unchecked"]
     n_decl = sum(1 for o in objs if o.get("rests_on") or o.get("attached_to"))
     report = {
         "ok": True, "pass": not failing, "room": str(room), "preview": str(preview),
@@ -223,6 +239,7 @@ def validate(room: Path, preview: Path | None = None) -> dict:
         "support": support, "overlap": overlaps, "articulation": articulated,
         "mesh_clash": clashes, "manifold": manifold,
         "failing": failing,
+        "finite_support": contact,
     }
     return report
 
@@ -237,7 +254,7 @@ def summary(report: dict) -> str:
              f"mesh clashes {c['mesh_clash'] if c['mesh_clash'] is not None else 'n/a (no python-fcl)'}, "
              f"open meshes {c['open_meshes']}; {c['overlap']} box overlaps to review"]
     for f in report["failing"][:25]:
-        lines.append(f"  ✗ {f.get('kind')}: {f.get('detail')}")
+        lines.append(f"  ✗ {f.get('kind')}: {f.get('detail', f)}")
     if len(report["failing"]) > 25:
         lines.append(f"  … {len(report['failing']) - 25} more in validation.json")
     return "\n".join(lines)

@@ -230,6 +230,10 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
         return 0, None
 
     monkeypatch.setattr(author, "run_module", fake_run_module)
+    def fake_finish(ctx, options):
+        calls.append(("support-first acceptance", [], None))
+        return {"accepted": True}
+    monkeypatch.setattr("litereality_agent.pipeline.realism_authoring.acceptance.finish", fake_finish)
     result = author.run(
         context,
         {"refine_objects": True, "materials": True, "quality_pass": True},
@@ -246,4 +250,4 @@ def test_polish_passes_remain_in_the_author_flow(tmp_path: Path, monkeypatch):
     # After the passes, the gate: a build (nothing here produced room_preview/) so it has
     # something to judge. The gate itself only runs once a layout exists, which the fake
     # build does not write — so the build is the last call here.
-    assert modules[4:] == ["litereality_agent.room_ops.compile.build_from_room"]
+    assert modules[4:] == ["support-first acceptance"]

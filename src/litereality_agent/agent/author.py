@@ -427,6 +427,10 @@ SIMULATION READINESS is not an extra. Every object you add is ONE named group wi
 support — `rests_on="Table1"` / `rests_on="Floor0"` / `attached_to="Wall3"` — and the claim must be
 true in the geometry: the underside on the surface, read from the support's top, not placed by
 eye. Nothing interpenetrates anything.
+For articulated furniture also set `support_part="<exact moving node name>"` in group_fixture;
+this binds desktop contents to the moving desktop, not the fixed table base. Inspect source
+node names. Check every member of merged furniture and chair stacks, not just the group bottom.
+The final gate uses actual finite mesh contact and rejects disconnected unsupported parts.
 
 THE GATE. Before you finish, build the room and run
     {python} -m litereality_agent.pipeline.room_qc.validate --room .

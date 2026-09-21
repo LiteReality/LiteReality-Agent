@@ -57,7 +57,10 @@ def test_box_overlaps_are_advisory_and_skip_support_pairs():
     assert [(o["id"], o["with"]) for o in ov] == [("Table0", "Chair0")]
 
 
-def test_the_verdict_blocks_on_support_but_not_on_boxes(tmp_path: Path):
+def test_the_verdict_blocks_on_support_but_not_on_boxes(tmp_path: Path, monkeypatch):
+    import numpy as np
+    import trimesh
+    monkeypatch.setattr(V, "mesh_clashes", lambda *args: [])
     room = tmp_path / "room"
     room.mkdir()
     (room / "Room.py").write_text("SHELL = {}\n")
@@ -66,14 +69,26 @@ def test_the_verdict_blocks_on_support_but_not_on_boxes(tmp_path: Path):
     chair = _obj("Chair0", "chair", (0.5, 0.3, 0.0), (1.0, 0.9, 0.9))
     mug = _obj("Mug0", "mug", (0.2, 0.2, 0.80), (0.28, 0.28, 0.90), rests_on="Table0")
     (prev / "room_layout.json").write_text(json.dumps(_layout([FLOOR, TABLE, chair, mug])))
+    (prev / "manifest.json").write_text('{"assets": []}')
+    def export():
+        scene = trimesh.Scene()
+        for obj in [FLOOR, TABLE, chair, mug]:
+            lo, hi = np.array(obj["bbox_min"]), np.array(obj["bbox_max"])
+            mesh = trimesh.creation.box(extents=hi-lo)
+            mesh.apply_translation((lo+hi)/2)
+            mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi/2, [1,0,0]))
+            scene.add_geometry(mesh, node_name=obj["id"])
+        scene.export(prev / "Room.glb")
+    export()
     rep = V.validate(room, prev)
     assert rep["ok"] and not rep["pass"]
-    assert [f["kind"] for f in rep["failing"]] == ["floating"]
+    assert [f["kind"] for f in rep["failing"]] == ["no_downward_support_contact"]
     assert rep["counts"]["overlap"] == 1                      # reported, not blocking
     assert V.main(["--room", str(room), "--preview", str(prev)]) == 2
     assert (prev / "validation.json").is_file()
     mug["bbox_min"][2], mug["bbox_max"][2] = 0.75, 0.85
     (prev / "room_layout.json").write_text(json.dumps(_layout([FLOOR, TABLE, chair, mug])))
+    export()
     assert V.main(["--room", str(room), "--preview", str(prev)]) == 0
 
 
