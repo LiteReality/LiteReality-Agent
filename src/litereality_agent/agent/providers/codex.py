@@ -43,6 +43,7 @@ import shutil
 import signal
 import sys
 from collections.abc import AsyncIterator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from litereality_agent.agent.providers.base import (
@@ -66,6 +67,24 @@ _SHELL_TOOL = "Bash"
 # the first line over it, which killed the session a couple of tool calls in and reported success.
 # The cap has to clear the largest event a session can emit, not the typical one.
 _EVENT_LINE_LIMIT = 64 * 1024 * 1024
+
+
+def _budgeted_prompt(spec: SessionSpec, seconds: float) -> str:
+    limits = []
+    if seconds > 0:
+        deadline = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        limits.append(f"{seconds:g} wall-clock seconds; deadline {deadline.isoformat()}")
+    if spec.step_budget > 0:
+        limits.append(f"{spec.step_budget} tool calls")
+    if not limits:
+        return spec.prompt
+    return (
+        "SESSION LIMITS (hard stop): " + "; ".join(limits) + ".\n"
+        "Prioritize required correctness/support checks over optional detail. Reserve the final "
+        "20% of your time for verification and your final response. Do not start optional work "
+        "that prevents finishing. Never skip required checks or claim unfinished work passed "
+        "to fit the budget; report remaining issues honestly.\n\n" + spec.prompt
+    )
 
 
 def _session_processes(root):
@@ -321,7 +340,8 @@ class CodexHarness:
         model = _codex_model()
         if model:
             cmd += ["-m", model]
-        cmd.append(spec.prompt)
+        seconds = spec.timeout_seconds or float(os.environ.get("LR_CODEX_SESSION_SECONDS", "1800"))
+        cmd.append(_budgeted_prompt(spec, seconds))
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -333,7 +353,6 @@ class CodexHarness:
             limit=_EVENT_LINE_LIMIT,
             start_new_session=True,
         )
-        seconds = spec.timeout_seconds or float(os.environ.get("LR_CODEX_SESSION_SECONDS", "1800"))
         deadline = asyncio.get_running_loop().time() + seconds if seconds > 0 else None
         stderr_task = asyncio.create_task(proc.stderr.read())
 

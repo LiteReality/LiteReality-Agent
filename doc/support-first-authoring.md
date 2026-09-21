@@ -67,6 +67,8 @@ calls / 600 seconds each; independent reviews 240 seconds. Other Codex sessions
 default to 1800 wall seconds, configurable via `LR_CODEX_SESSION_SECONDS`.
 These are **tool/time caps, not guaranteed token or dollar caps**. Model calls
 consume account usage. Tests marked `live` are not run by the offline test suite.
+Each Codex prompt states its wall-clock deadline and tool limit, and asks it to
+reserve the last 20% for verification and reporting; the hard cap remains enforced.
 
 Every repair round retains source/build snapshots and its findings under
 `realism_authoring/acceptance/attempt-*/`. Rerunning author preserves its editable

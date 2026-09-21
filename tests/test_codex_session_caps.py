@@ -5,7 +5,14 @@ import sys
 import time
 
 from litereality_agent.agent.providers.base import SessionResult, SessionSpec
-from litereality_agent.agent.providers.codex import CodexHarness
+from litereality_agent.agent.providers.codex import CodexHarness, _budgeted_prompt
+
+
+def test_session_can_see_its_time_and_tool_limits():
+    prompt = _budgeted_prompt(SessionSpec(prompt="Required task", cwd=".", step_budget=40), 600)
+    assert "600 wall-clock seconds" in prompt and "deadline" in prompt
+    assert "40 tool calls" in prompt and "Never skip required checks" in prompt
+    assert prompt.endswith("Required task")
 
 
 def run_fake(monkeypatch, program, seconds, steps):
