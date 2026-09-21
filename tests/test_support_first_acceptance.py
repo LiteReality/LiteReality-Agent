@@ -128,6 +128,18 @@ def test_moving_support_requires_the_named_link_and_parenting():
     assert E.check(doc, objects, {}) == []
 
 
+def test_nested_animated_furniture_does_not_make_its_floor_move():
+    doc = {"nodes": [
+        {"name": "Floor", "children": [1, 3]},
+        {"name": "Cabinet", "children": [2]},
+        {"name": "Door"},
+        {"name": "Chair"}],
+        "animations": [{"channels": [{"target": {"node": 2}}]}]}
+    objects = [{"id": "Floor"}, {"id": "Cabinet", "rests_on": "Floor"},
+               {"id": "Chair", "rests_on": "Floor"}]
+    assert E.check(doc, objects, {}) == []
+
+
 def test_export_cannot_drop_merged_instances():
     findings = E.check(
         {"nodes": [{"name": "Chair0"}]},

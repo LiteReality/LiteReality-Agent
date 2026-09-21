@@ -56,6 +56,18 @@ def check(doc: dict, objects: list[dict], manifest: dict) -> list[dict]:
         if "node" in c.get("target", {})
     }
     by_id = {o["id"]: o for o in objects}
+    handles = {unique(o.get("handle") or o["id"]) for o in objects} - {None}
+
+    def owned_by(node, handle):
+        """Nested furniture does not make its floor (or containing shelf) animated."""
+        seen = set()
+        while node is not None and node not in seen:
+            if node in handles:
+                return node == handle
+            seen.add(node)
+            node = parents.get(node)
+        return False
+
     for asset in manifest.get("assets", []):
         needs_animation = asset.get("kind") == "articulated"
         if isinstance(doc, GlbDocument):
@@ -77,7 +89,7 @@ def check(doc: dict, objects: list[dict], manifest: dict) -> list[dict]:
             i = unique(handle)
             if name not in by_id or i is None:
                 findings.append({"id": name, "kind": "source_instance_missing_or_ambiguous"})
-            elif needs_animation and not any(under(n, i) for n in animated):
+            elif needs_animation and not any(owned_by(n, i) for n in animated):
                 findings.append({"id": name, "kind": "animation_lost"})
     for obj in objects:
         target = obj.get("rests_on") or obj.get("attached_to")
@@ -88,8 +100,9 @@ def check(doc: dict, objects: list[dict], manifest: dict) -> list[dict]:
         if child is None or support is None:
             findings.append({"id": obj["id"], "kind": "support_node_missing_or_ambiguous"})
             continue
-        # Ignore animations on supported children: they are not moving parts of the furniture.
-        moving = {n for n in animated if under(n, support) and not under(n, child)}
+        # Ignore ALL nested room objects, not just this child. Otherwise a cabinet
+        # parented to Floor0 makes every chair on that floor appear to need a link.
+        moving = {n for n in animated if owned_by(n, support)}
         part_name = obj.get("support_part")
         part = unique(part_name) if part_name else support
         if part is None or not under(part, support):
