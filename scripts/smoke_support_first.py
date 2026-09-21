@@ -58,7 +58,7 @@ def main():
     # Every subprocess, including render/tool hosts, must use this worktree's code.
     os.environ["PYTHONPATH"] = str(ROOT / "src")
     os.environ["PYTHONUNBUFFERED"] = "1"
-    context = RunContext.from_target(capture, output_root=output, settings=settings)
+    context = RunContext.resolve(capture, output_root=output, settings=settings)
     status = {
         "status": "running",
         "started_utc": datetime.now(timezone.utc).isoformat(),
