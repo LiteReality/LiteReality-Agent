@@ -27,7 +27,7 @@ An open-source, end-to-end toolkit for turning real-world scans into simulation-
 </table>
 
 <p align="center">
-  <a href="https://litereality.github.io/agent/vr/office-elliott-qc.html">
+  <a href="https://litereality.github.io/agent/vr/index.html">
     ✨ <strong>Explore more examples in the interactive 3D viewer →</strong>
   </a>
 </p>
