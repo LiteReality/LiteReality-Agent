@@ -57,6 +57,9 @@ VIEW_DIRS = {  # camera offset direction (Blender Z-up, front = -Y)
     "iso": (-0.85, -1.0, 0.55),
     "front": (0.0, -1.0, 0.25),
     "side": (-1.0, -0.15, 0.3),
+    # rear views, for checking features that sit on the +Y back of the object
+    "back": (0.0, 1.0, 0.25),
+    "back_iso": (0.85, 1.0, 0.55),
 }
 
 
