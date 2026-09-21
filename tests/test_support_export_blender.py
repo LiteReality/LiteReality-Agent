@@ -63,4 +63,5 @@ open(LAYOUT,'w').write(json.dumps(list(scene.objects.values())))
     assert result.returncode == 0, result.stdout + result.stderr
     doc = glb_document(tmp_path / "Room.glb")
     objects = json.loads((tmp_path / "objects.json").read_text())
-    assert check(doc, objects, {"assets": [{"object": "Table", "kind": "articulated"}]}) == []
+    assert check(doc, objects, {"assets": [
+        {"object": "Table", "kind": "articulated", "glb": "Room.glb"}]}) == []

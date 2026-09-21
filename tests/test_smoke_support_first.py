@@ -28,3 +28,9 @@ def test_fresh_smoke_copies_capture_and_records_result(tmp_path, monkeypatch):
     status = json.loads((work / "smoke_status.json").read_text())
     assert status["status"] == "accepted" and status["source_unchanged"]
     assert len(seen) == 1
+    monkeypatch.setattr(sys, "argv", ["smoke", str(capture), "--workdir", str(work),
+                                      "--settings-from", str(tmp_path), "--resume"])
+    assert code["main"]() == 0
+    resumed = json.loads((work / "smoke_status.json").read_text())
+    assert resumed["history"] == [{k: v for k, v in status.items() if k != "history"}]
+    assert resumed["source_unchanged"] and len(seen) == 2

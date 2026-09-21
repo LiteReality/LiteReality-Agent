@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--workdir", type=Path, required=True)
     parser.add_argument("--settings-from", type=Path, default=ROOT)
     parser.add_argument("--use-dino", action="store_true")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume this isolated test, preserving its original capture hashes and history")
     args = parser.parse_args()
     source, work = args.capture.resolve(), args.workdir.resolve()
     if not source.is_dir() or source == work or source in work.parents:
@@ -38,12 +40,29 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     capture = work / "input" / source.name
     output = work / "output"
-    if capture.exists() or output.exists():
+    status_path = work / "smoke_status.json"
+    history = []
+    if args.resume:
+        if not capture.is_dir() or not status_path.is_file():
+            parser.error("resume requires an existing isolated test and capture copy")
+        previous = json.loads(status_path.read_text())
+        if previous.get("status") == "running":
+            parser.error("test is still marked running; stop and finalize it before resuming")
+        if previous.get("source") != str(source):
+            parser.error("resume source differs from the original test")
+        originals = json.loads((work / "source_checksums.json").read_text())
+        current = {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file()}
+        copied = {str(p.relative_to(capture)): digest(p) for p in capture.rglob("*") if p.is_file()}
+        if originals != current or originals != copied:
+            parser.error("source or isolated capture changed since the fresh test")
+        history = previous.pop("history", []) + [previous]
+    elif capture.exists() or output.exists():
         parser.error(
             "this is a fresh-run harness: input/output already exists; choose a new workdir"
         )
-    originals = {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file()}
-    shutil.copytree(source, capture)
+    else:
+        originals = {str(p.relative_to(source)): digest(p) for p in source.rglob("*") if p.is_file()}
+        shutil.copytree(source, capture)
     settings = load_settings(
         args.settings_from,
         repo_root=ROOT,
@@ -70,8 +89,8 @@ def main():
         "scene": str(context.scene_dir),
         "author_model": settings.codex_model,
         "use_dino": args.use_dino,
+        "history": history,
     }
-    status_path = work / "smoke_status.json"
     status_path.write_text(json.dumps(status, indent=2))
     (work / "source_checksums.json").write_text(json.dumps(originals, indent=2))
     try:

@@ -150,6 +150,45 @@ def test_codex_is_explicit_and_per_object_tool_is_bridged(monkeypatch):
     assert 'mcp_servers.obj.args=["-m", "object_server"]' in flags
 
 
+def test_mcp_forwards_scene_settings_by_name_not_secret_value(monkeypatch):
+    monkeypatch.setenv("LITEREALITY_SCAN", "isolated_scan")
+    monkeypatch.setenv("LITEREALITY_OUTPUT", "/isolated/output")
+    monkeypatch.setenv("LR_CODEX_MODEL", "gpt-6-astra")
+    monkeypatch.setenv("LR_TEST_SECRET", "must-not-be-in-argv")
+    spec = SessionSpec(prompt="x", cwd=Path("."), capability_tools=("render",),
+                       stdio_mcp={"obj": {"command": "python", "args": []}})
+    flags = _mcp_config(spec)
+    assert "must-not-be-in-argv" not in str(flags)
+    for server in ("cap", "obj"):
+        flag = next(f for f in flags if f.startswith(f"mcp_servers.{server}.env_vars="))
+        names = json.loads(flag.split("=", 1)[1])
+        assert {"LITEREALITY_SCAN", "LITEREALITY_OUTPUT", "LR_CODEX_MODEL"} <= set(names)
+
+
+@pytest.mark.parametrize("source_animated,kind", [(False, "articulated"), (True, "static")])
+def test_export_uses_source_motion_not_opening_category(tmp_path, monkeypatch, source_animated, kind):
+    doc = E.GlbDocument({"nodes": [{"name": "Fixture"}]}, tmp_path / "Room.glb")
+    source = {"animations": [{"channels": []}]} if source_animated else {}
+    paths = []
+
+    def load(path):
+        paths.append(path)
+        return source
+
+    monkeypatch.setattr(E, "glb_document", load)
+    manifest = {"assets": [{"object": "Fixture", "kind": kind, "glb": "Object/Fixture.glb"}]}
+    findings = E.check(doc, [{"id": "Fixture"}], manifest)
+    assert paths == [tmp_path / "Object/Fixture.glb"]
+    assert findings == ([{"id": "Fixture", "kind": "animation_lost"}] if source_animated else [])
+
+
+def test_missing_source_cannot_prove_static_opening(tmp_path):
+    doc = E.GlbDocument({"nodes": [{"name": "Window"}]}, tmp_path / "Room.glb")
+    findings = E.check(doc, [{"id": "Window"}], {"assets": [
+        {"object": "Window", "kind": "articulated", "glb": "missing.glb"}]})
+    assert "source_animation_unchecked" in {f["kind"] for f in findings}
+
+
 def test_visual_critic_routes_through_quality_without_fallback(monkeypatch):
     from litereality_agent.agent.tools import _vlm
 

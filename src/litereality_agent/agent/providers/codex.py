@@ -111,12 +111,16 @@ def _mcp_config(spec: SessionSpec) -> list[str]:
     """
     extra = []
     pythonpath = str(Path(__file__).resolve().parents[3])
+    # Codex MCP children inherit only a small default environment. Forward the
+    # scene/output/model settings by NAME, without putting secret values in argv.
+    env_vars = sorted(k for k in os.environ if k.startswith(("LITEREALITY_", "LR_")))
     for name, server in spec.stdio_mcp.items():
         if not name.replace("_", "").isalnum():
             raise ValueError(f"invalid MCP server name: {name}")
         for key in ("command", "args"):
             extra += ["-c", f"mcp_servers.{name}.{key}={_toml(server[key])}"]
         extra += ["-c", f"mcp_servers.{name}.env.PYTHONPATH={_toml(pythonpath)}"]
+        extra += ["-c", f"mcp_servers.{name}.env_vars={_toml(env_vars)}"]
     if not spec.capability_tools:
         return extra
     args = [
@@ -134,6 +138,8 @@ def _mcp_config(spec: SessionSpec) -> list[str]:
         f"mcp_servers.cap.args={_toml(args)}",
         "-c",
         f"mcp_servers.cap.env.PYTHONPATH={_toml(pythonpath)}",
+        "-c",
+        f"mcp_servers.cap.env_vars={_toml(env_vars)}",
     ]
 
 

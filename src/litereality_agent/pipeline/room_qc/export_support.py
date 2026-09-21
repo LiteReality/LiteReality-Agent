@@ -7,6 +7,14 @@ import struct
 from pathlib import Path
 
 
+class GlbDocument(dict):
+    """JSON document retaining its location for source-asset comparisons."""
+
+    def __init__(self, data, path):
+        super().__init__(data)
+        self.path = Path(path)
+
+
 def glb_document(path: Path) -> dict:
     with path.open("rb") as stream:
         header = stream.read(12)
@@ -15,7 +23,7 @@ def glb_document(path: Path) -> dict:
         length, kind = struct.unpack("<II", stream.read(8))
         if kind != 0x4E4F534A:
             raise ValueError("GLB has no JSON chunk")
-        return json.loads(stream.read(length))
+        return GlbDocument(json.loads(stream.read(length)), path)
 
 
 def check(doc: dict, objects: list[dict], manifest: dict) -> list[dict]:
@@ -49,13 +57,27 @@ def check(doc: dict, objects: list[dict], manifest: dict) -> list[dict]:
     }
     by_id = {o["id"]: o for o in objects}
     for asset in manifest.get("assets", []):
+        needs_animation = asset.get("kind") == "articulated"
+        if isinstance(doc, GlbDocument):
+            # "articulated" is a routing label for openings, including fixed picture
+            # windows. Conversely, a "static" cabinet may contain animated doors.
+            # Compare with the rebuilt source asset, never infer motion from category.
+            try:
+                source = glb_document(doc.path.parent / asset["glb"])
+                needs_animation = bool(source.get("animations")) or any(
+                    n.get("extras", {}).get("articulation_type") in ("revolute", "prismatic")
+                    for n in source.get("nodes", [])
+                )
+            except (OSError, ValueError, KeyError, struct.error) as exc:
+                findings.append({"id": asset["object"], "kind": "source_animation_unchecked",
+                                 "detail": str(exc)})
         expected = asset.get("represents_prims") or [asset.get("maps_to_prim") or asset["object"]]
         for name in expected:
             handle = by_id.get(name, {}).get("handle", name)
             i = unique(handle)
             if name not in by_id or i is None:
                 findings.append({"id": name, "kind": "source_instance_missing_or_ambiguous"})
-            elif asset.get("kind") == "articulated" and not any(under(n, i) for n in animated):
+            elif needs_animation and not any(under(n, i) for n in animated):
                 findings.append({"id": name, "kind": "animation_lost"})
     for obj in objects:
         target = obj.get("rests_on") or obj.get("attached_to")

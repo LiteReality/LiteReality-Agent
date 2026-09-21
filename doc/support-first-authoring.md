@@ -31,8 +31,8 @@ Checks include:
 - disconnected members of grouped meshes must have a contact path to support;
   glTF UV/normal seams are welded for analysis only; more than 10,000 components
   or 20,000 candidate contact pairs is an incomplete check, never a pass;
-- articulated assets keep animation, and supported contents follow the specified
-  support part in the exported hierarchy;
+- animated source assets keep animation (fixed picture windows are not required to
+  move), and supported contents follow the specified support part in the exported hierarchy;
 - independent visual score ≥8, no outstanding issues, and explicit object coverage.
 
 These are conservative geometric and visual checks, **not a physics stability or
@@ -77,3 +77,9 @@ Verification: offline geometry/orchestration/provider tests plus a Blender test
 sampling a moving tabletop at six frames and checking the exported GLB hierarchy.
 Live scan results are reported separately: code tests are not evidence that a real
 scene has passed reconstruction or visual acceptance.
+
+`scripts/smoke_support_first.py` makes an isolated capture copy for an end-to-end test.
+After a finished/failed attempt, `--resume` reuses completed stages without regenerating
+assets, retaining attempt history and checking both capture copies against the original
+hashes. Codex MCP tools explicitly inherit the run's scene/output/model settings so an
+isolated output directory resolves just as the default `run/` does.
