@@ -29,7 +29,8 @@ Checks include:
 - known support targets, rooted acyclic support chains, all manifest instances
   including `represents_prims`, preserved bundled source GLBs;
 - disconnected members of grouped meshes must have a contact path to support;
-  more than 128 components is an explicit incomplete check, never a pass;
+  glTF UV/normal seams are welded for analysis only; more than 10,000 components
+  or 20,000 candidate contact pairs is an incomplete check, never a pass;
 - articulated assets keep animation, and supported contents follow the specified
   support part in the exported hierarchy;
 - independent visual score ≥8, no outstanding issues, and explicit object coverage.

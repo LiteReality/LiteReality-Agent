@@ -189,7 +189,7 @@ def vertical_contacts(child, support, tolerance=0.015, sink_tolerance=0.02, flex
     }
 
 
-def disconnected_findings(name, child, support, *, limit=128):
+def disconnected_findings(name, child, support, *, limit=10000, pair_limit=20000):
     """Every disconnected member must have a contact path to the declared support.
 
     Connected triangles are not semantic objects. Adjacent components may form a chair
@@ -198,35 +198,44 @@ def disconnected_findings(name, child, support, *, limit=128):
     """
     from trimesh.collision import CollisionManager
 
-    parts = list(child.split(only_watertight=False))
+    # UV/normal seams duplicate vertices in glTF; they are not physical cracks.
+    # Work on a copy and weld only sub-micron coordinate duplicates, never the asset.
+    connected = child.copy()
+    connected.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=7)
+    parts = list(connected.split(only_watertight=False))
     if len(parts) > limit:
         return [{"id": name, "kind": "component_check_incomplete", "components": len(parts)}]
     if len(parts) < 2:
         return []
-    rooted, links = set(), {i: set() for i in range(len(parts))}
+    rooted = set()
     manager = CollisionManager()
     manager.add_object("support", support)
     for i, part in enumerate(parts):
         if manager.min_distance_single(part) <= 0.005:
             rooted.add(i)
-        local = CollisionManager()
-        local.add_object(str(i), part)
-        for j in range(i):
-            # Cheap AABB distance rejection before FCL on potentially complex meshes.
-            gap = np.maximum(
-                0,
-                np.maximum(
-                    part.bounds[0] - parts[j].bounds[1], parts[j].bounds[0] - part.bounds[1]
-                ),
-            )
-            if np.linalg.norm(gap) <= 0.005 and local.min_distance_single(parts[j]) <= 0.005:
-                links[i].add(j)
-                links[j].add(i)
+    # Expand only from supported members. No need for an O(n²) all-pairs graph:
+    # highly tessellated neural chairs routinely contain hundreds of touching patches.
+    bounds = np.asarray([p.bounds for p in parts])
+    remaining = set(range(len(parts))) - rooted
     pending = list(rooted)
+    pairs = 0
     while pending:
-        for j in links[pending.pop()] - rooted:
-            rooted.add(j)
-            pending.append(j)
+        i = pending.pop()
+        local = CollisionManager()
+        local.add_object(str(i), parts[i])
+        candidates = np.asarray(sorted(remaining), dtype=int)
+        gaps = np.maximum(
+            0,
+            np.maximum(bounds[i, 0] - bounds[candidates, 1], bounds[candidates, 0] - bounds[i, 1]),
+        )
+        for j in candidates[np.linalg.norm(gaps, axis=1) <= 0.005]:
+            pairs += 1
+            if pairs > pair_limit:
+                return [{"id": name, "kind": "component_check_incomplete", "pairs": pairs}]
+            if local.min_distance_single(parts[j]) <= 0.005:
+                rooted.add(int(j))
+                remaining.remove(int(j))
+                pending.append(int(j))
     return [
         {
             "id": name,

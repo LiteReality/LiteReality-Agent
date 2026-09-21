@@ -50,6 +50,21 @@ def test_touching_stack_has_a_contact_path():
     assert A.disconnected_findings("Stack", group, floor) == []
 
 
+def test_gltf_seams_are_not_physical_cracks_and_input_is_not_modified():
+    floor = box((4, 4, 0.1), (0, 0, -0.05))
+    child = box((0.5, 0.5, 1), (0, 0, 0.5))
+    child.unmerge_vertices()
+    before = child.vertices.copy()
+    assert A.disconnected_findings("Seamed", child, floor, limit=1) == []
+    assert (child.vertices == before).all()
+
+
+def test_many_grounded_members_do_not_fail_an_arbitrary_small_component_cap():
+    floor = box((30, 30, 0.1), (0, 0, -0.05))
+    children = [box((0.1, 0.1, 1), ((i % 16) * 0.2, (i // 16) * 0.2, 0.5)) for i in range(256)]
+    assert A.disconnected_findings("ManyChairs", trimesh.util.concatenate(children), floor) == []
+
+
 def test_attachment_to_missing_wall_is_not_accepted():
     _, findings = support_graph([{"id": "Picture", "attached_to": "MissingWall"}])
     assert any(f["kind"] == "unknown_support" for f in findings)
