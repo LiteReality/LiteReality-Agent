@@ -16,6 +16,7 @@ the ported implementation under ``ingest/preprocessing/vendor``.
 from __future__ import annotations
 
 import glob
+import json
 import shutil
 import time
 from pathlib import Path
@@ -325,11 +326,21 @@ def extract(raw_scan_folder: str, scan: str) -> Path:
     """Run scene extraction for one scan. Assumes CWD == work root (enter_work_root)."""
     scene_usdz = copy_scan_files(raw_scan_folder, scan)
     walls, objects, _wall_holes, floor = extract_scene_data(scene_usdz)
+    # a built-in fridge column RoomPlan boxed twice loses the duplicate box (extract/fridge_column.py)
+    from litereality_agent.pipeline.scene_init.ingest.extract import fridge_column
+
+    objects, column_boxes = fridge_column.drop_column_duplicates(objects)
     wall_holes = rebuild_roomplan_wall_holes(scene_usdz, walls)
     opening_count = sum(len(v.get("type", [])) for v in wall_holes.values() if isinstance(v, dict))
     print(f"{Colors.GREEN}✓{Colors.RESET} {len(objects)} objects, {opening_count} openings")
     save_scene_data(scan, walls, objects, wall_holes, floor)
     root = config.scene_data_dir(scan)
+    record = root / "column_duplicates.json"
+    if column_boxes:
+        record.write_text(json.dumps([{"name": e["object_type"], "reason": e["drop_reason"]}
+                                      for e in column_boxes], indent=2), encoding="utf-8")
+    else:
+        record.unlink(missing_ok=True)
     # Extraction is the only stage allowed to reset the immutable measurements.
     shutil.copy2(root / "objects.pkl", root / "objects.extracted.pkl")
     for name in ("layout_baseline.json", "merge_review.json"):
